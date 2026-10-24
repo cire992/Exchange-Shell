@@ -33,7 +33,7 @@ try {
   for (const session of service.sessions.items.values()) {
     await service.sessions.hydrate(session); service.sessions.launch(session);
   }
-  service.mobile.transcripts.read = async session => ({ supported: true, messages: [
+  service.transcripts.read = async session => ({ supported: true, messages: [
     { id: 'user-1', role: 'user', text: `Review ${session.id}`, at: '2026-10-18T08:00:00Z' },
     { id: 'reply-1', role: 'assistant', text: '## Review ready\n\n**Verified** the character.\n\n[OpenAI](https://openai.com/)\n\n- Preserve the source\n- Review the result', at: '2026-10-18T08:00:10Z' },
   ], activity: [] });

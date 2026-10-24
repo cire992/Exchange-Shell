@@ -1,6 +1,6 @@
 # Exchange Shell: progress and handoff
 
-Last updated 2026-10-24, during phase 5a.
+Last updated 2026-10-24, during phase 5b. 5a is merged (#1).
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -31,8 +31,8 @@ history restore, and the per-session bypass checkbox with a badge on the tab.
 
 | PR | What | State |
 | --- | --- | --- |
-| 5a | Foundation: upstream history and remote, this doc, Windows-only CI, the unmodified app built and run on the dev machine | in progress |
-| 5b | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | planned |
+| 5a (#1) | Foundation: upstream history and remote, this doc, Windows-only CI, the unmodified app built and run on the dev machine | merged |
+| 5b | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | in review |
 | 5c | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | planned |
 | 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | planned |
 
@@ -136,18 +136,36 @@ cargo test --manifest-path src-tauri/Cargo.toml
 `npm run desktop:build`) creates; without it the Tauri build script stops with
 "resource path doesn't exist".
 
-**Known test failures on this machine** (upstream code, before any Exchange
-change):
+**Known flaky test** (upstream code): `handoff.test.mjs`, "accepting a
+handoff…" waits 50 ms and sometimes fails under the full suite's load; it passes
+on its own. (5a also listed a `quick-actions` failure; that test went with quick
+actions in 5b.)
 
-- `quick-actions.test.mjs`, "reasoning is medium or above…": fails whenever
-  Claude Code is installed as a native `.exe`. The test assumes every Windows
-  CLI is wrapped in an encoded PowerShell command. CI has no CLIs installed and
-  skips that branch. The file is removed with quick actions in 5b.
-- `handoff.test.mjs`, "accepting a handoff…": a timing flake. It waits 50 ms and
-  sometimes fails under the full suite's load; it passes on its own.
+### What 5b removed, and what it kept
+
+- **Service:** the coordinator, quick actions, the voice profile and OpenAI Live
+  routes, the mobile gateway with pairing and Tailscale, dictation (local Whisper
+  and paid providers), read-aloud, and the `qrcode` dependency. Settings saved by
+  those features (`voiceName`, `voiceStyle`, `coordinatorModel`,
+  `coordinatorEffort`, `transcribeProvider`) are dropped when settings load.
+- **Frontend:** the voice dock and Mak composer, mobile access, dictation, read
+  aloud, the phone app, and their CSS.
+- **Kept despite the names:** `desktop/service/mobile-transcript.mjs`
+  (`ConversationTranscripts`, which the desktop Conversation view reads) and six
+  files in `src/mobile/` that the desktop reuses (`SystemEvent`, `BackgroundWork`,
+  `ConversationImages`, `ImageViewer`, `workspace-context`, `app-state`).
+  `mobile-report-state.mjs` stays with the report and card code until 5c.
+- **The `coordinator` option of `sessions.input`** now only means "pasted and
+  submitted by the app" (the Conversation view and handoffs use it). Its
+  upstream name is kept.
 
 ## Known gaps and next candidates
 
+- **Docs left for 5c's branding pass:** the root `README.md` (Mr. Mak's product
+  page, which `check-template.mjs` pins), `docs/macos.md` and `docs/updating.md`
+  (Mr. Mak release and macOS notes), and the sample card
+  `workspace/2026-09-15_make-workspace-yours/get-started.md` still describe voice
+  and mobile access, and some link to the removed `docs/mobile-access.md`.
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.
 - `.github/dependabot.yml` still opens weekly pull requests for workflow pins.

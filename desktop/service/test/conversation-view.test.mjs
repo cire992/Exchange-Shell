@@ -83,15 +83,15 @@ test('desktop conversation view reads the native transcript, grants its media an
   assert.equal((await (await request('/preview/show', { path: '.', sessionId: session.id })).json()).shown, 'folder');
   assert.equal((await request('/preview/show', { path: 'missing.txt', sessionId: session.id })).status, 400);
 
-  const speak = await request(`/sessions/${session.id}/speak`, { voice: 'am_michael', text: 'Hello' });
-  assert.equal(speak.status, 503); assert.match((await speak.json()).error, /Set up local Read aloud/);
+  // Read aloud was removed with in-app speech.
+  assert.equal((await request(`/sessions/${session.id}/speak`, { voice: 'am_michael', text: 'Hello' })).status, 404);
 
   const game = path.join(cwd, 'Game'); await mkdir(game);
   await writeFile(path.join(home, '.claude.json'), JSON.stringify({ projects: { [cwd]: {}, [game]: {} } }));
   assert.equal((await request('/recent-projects/pin', { path: path.join(cwd, 'elsewhere'), pinned: true })).status, 400);
   const pinned = await (await request('/recent-projects/pin', { path: game, pinned: true })).json();
   assert.deepEqual(pinned.filter(item => item.pinned).map(item => item.path), [game]);
-  assert.deepEqual((await service.coordinator.execute('list_projects', { query: 'game' })).map(item => item.path), [game]);
+  assert.ok((await (await request('/recent-projects')).json()).some(item => item.path === game && item.pinned));
 
   assert.deepEqual(await (await request(`/sessions/${session.id}/stats`)).json(), { supported: true, userMessages: 1, truncated: false, model: null, handoff: null });
   const handoff = await request(`/sessions/${session.id}/handoff`, {});

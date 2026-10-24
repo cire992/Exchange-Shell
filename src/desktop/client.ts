@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from 'react'
 import type { DesktopState, Preview, ServiceEvent } from './types'
-import { anySignal } from '../lib/abort'
 
 const params = new URLSearchParams(window.location.search)
 export const isDesktop = params.get('desktop') === '1'
@@ -16,7 +15,7 @@ const listeners = new Set<() => void>()
 const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
   ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [],
-  settings: { defaultAgent: 'codex', defaultBypass: false }, coordinator: 'idle', voice: { configured: false, owner: null }, operations: [], preview: null, voiceHistory: [],
+  settings: { defaultAgent: 'codex', defaultBypass: false }, preview: null,
 }
 let socket: WebSocket | null = null
 let started = false
@@ -104,7 +103,7 @@ function connect() {
   socket.onopen = () => socket?.send(JSON.stringify({ type: 'auth', token, clientId, surface }))
   socket.onmessage = ({ data }) => {
     const event = JSON.parse(data) as ServiceEvent
-    if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, selectedId: event.selectedId ?? state.selectedId, coordinator: event.state || state.coordinator, error: null })
+    if (event.type === 'connected') update({ connected: true, sessions: event.sessions || state.sessions, selectedId: event.selectedId ?? state.selectedId, error: null })
     if (event.type === 'selection') update({ selectedId: event.selectedId || null })
     if (event.type === 'session' && event.session) {
       const next = event.session
@@ -115,14 +114,8 @@ function connect() {
       update({ sessions, selectedId: state.selectedId === event.id ? sessions[0]?.id || null : state.selectedId })
     }
     if (event.type === 'service-error') reportError(event.error || 'Connection error')
-    if (event.type === 'coordinator-state') update({ coordinator: event.state || 'idle' })
-    if (event.type === 'coordinator-result' && event.operation) {
-      const operation = event.operation
-      update({ operations: [...state.operations.filter(item => item.id !== operation.id), operation].slice(-50) })
-    }
     if (event.type === 'settings' && event.settings) update({ settings: event.settings })
     if (event.type === 'notice' && event.notice) update({ notices: [...state.notices, event.notice].slice(-100) })
-    if (event.type === 'voice-owner') update({ voice: { ...state.voice, owner: event.owner || null } })
     if (event.type === 'navigate') {
       if (event.sessionId) selectChat(event.sessionId)
       if (surface === 'workspace' && event.window === 'workspace') {
@@ -145,15 +138,3 @@ function connect() {
 // Exposing a capability through a DOM attribute would give report pages access to it.
 // It lives only in this UI origin, which is separate from the report server.
 window.addEventListener('pagehide', () => { token = ''; socket?.close(); clearTimeout(reconnectTimer) })
-
-export async function transcribeDesktopAudio(recording: import('../mobile/voice-drafts').VoiceDraft, signal: AbortSignal): Promise<{ text: string }> {
-  const response = await fetch('/api/transcribe', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': recording.audio.type, 'X-Transcription-Id': recording.id }, body: recording.audio, signal: anySignal([signal, AbortSignal.timeout(270000)]) })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.error || 'Could not transcribe this recording.')
-  return result
-}
-export async function speakDesktopText(sessionId: string, voice: string, text: string, signal: AbortSignal): Promise<ArrayBuffer> {
-  const response = await fetch(`/api/sessions/${sessionId}/speak`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ voice, text }), signal })
-  if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || 'Speech generation failed.') }
-  return response.arrayBuffer()
-}

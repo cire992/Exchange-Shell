@@ -36,7 +36,7 @@ test('local authorization and report isolation protect the terminal service', as
     const wrongHost = await new Promise(resolve => { http.get(service.origin + '/api/bootstrap', { headers: { Host: 'attacker.example', Authorization: `Bearer ${service.token}` } }, response => { response.resume(); resolve(response.statusCode); }); });
     assert.equal(wrongHost, 403);
     const bootstrap = await (await request('/bootstrap')).json();
-    assert.equal(bootstrap.voice.configured, true);
+    assert.equal('voice' in bootstrap, false);
     assert.equal(JSON.stringify(bootstrap).includes('not-a-real-key'), false);
     assert.notEqual(new URL(bootstrap.contentBase).origin, service.origin);
     const report = service.files.url(path.join(repo, 'workspace', 'A space', 'report.html'));
@@ -114,19 +114,6 @@ test('websocket rejects report origins and unauthenticated terminal input', asyn
     socket.send(JSON.stringify({ type: 'input', id: 'anything', data: 'whoami\r' }));
     assert.equal(await closed, 1008);
     assert.equal(service.sessions.list().length, 0);
-  } finally { await service.close(); }
-});
-
-test('coordinator operation IDs prevent replay, including after a restart', async () => {
-  const { service } = await fixture();
-  try {
-    service.coordinator.operations.set('already-routed', { id: 'already-routed', status: 'completed', result: 'Delivered once.' });
-    assert.equal((await service.coordinator.ask({ id: 'already-routed', text: 'Send it again' })).result, 'Delivered once.');
-    assert.equal(service.coordinator.child, null);
-    await service.coordinator.save();
-    const { Coordinator } = await import('../coordinator.mjs');
-    const restored = await new Coordinator({ repo: service.sessions.repo, stateDir: service.sessions.stateDir }).init();
-    assert.equal((await restored.ask({ id: 'already-routed', text: 'Retry' })).status, 'completed');
   } finally { await service.close(); }
 });
 

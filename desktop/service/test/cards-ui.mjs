@@ -1,4 +1,4 @@
-// Runs only against an isolated Workspace and a local fake mobile transport.
+// Runs only against an isolated Workspace.
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -18,8 +18,7 @@ await mkdir(path.join(repo, 'workspace/original'), { recursive: true });
 const original = '<!doctype html><h1>Original custom report</h1>';
 await writeFile(path.join(repo, 'workspace/original/report.html'), original);
 await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'original', title: 'Original report', folder: 'original', type: 'standalone', category: 'dev', status: 'active', created: localDay(), steps: [{ name: 'Original', path: 'report.html' }] }] }));
-const transport = { probe: async () => ({ installed: true, ready: true }), enable: async origin => ({ origin }), disable: async () => {} };
-const service = await createService({ repo, uiDir: path.join(repo, 'ui'), mobileOptions: { transport }, mcpOptions: { home: repo, env: {} } });
+const service = await createService({ repo, uiDir: path.join(repo, 'ui'), mcpOptions: { home: repo, env: {} } });
 let browser;
 try {
   browser = await launchBrowser();
@@ -154,26 +153,7 @@ try {
   releaseRead(); await returnedRead;
   await expect(entry(0).getByLabel('Notes')).toHaveValue('Latest saved notes');
   await page.unroute(`**/api/workspace/cards/${id}/0`);
-  // Exercise the actual paired-phone UI without touching the user's Tailscale.
-  await service.mobile.enable();
-  const qr = await service.mobile.newPairing();
-  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
-  const phone = await mobileContext.newPage(); phone.on('pageerror', error => errors.push(error.message));
-  const token = new URL(qr.url).hash.slice(6);
-  const pendingResponse = await mobileContext.request.post(`${service.mobile.origin}/mobile/api/pair`, { data: { token, name: 'Card preview phone' }, headers: { Origin: service.mobile.origin } });
-  const pending = await pendingResponse.json(); await service.mobile.approve(pending.id);
-  const paired = await mobileContext.request.post(`${service.mobile.origin}/mobile/api/pair/finish`, { data: pending, headers: { Origin: service.mobile.origin } });
-  assert.equal(paired.status(), 200);
-  await phone.goto(`${service.mobile.origin}/mobile/`);
-  await phone.getByRole('button', { name: 'Results', exact: true }).click();
-  await phone.getByRole('button', { name: /My editable board/ }).click();
-  await expect(phone.locator('.mobile-report-card')).toContainText('Latest saved notes');
-  assert.equal(await phone.getByRole('button', { name: 'Edit', exact: true }).count(), 0);
-  assert.equal(await phone.locator('.mobile-report-card').evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
-  await phone.locator('.card-entry-image a').first().click(); await expect(phone.getByRole('dialog', { name: 'Image preview' })).toBeVisible();
-  await phone.getByRole('button', { name: 'Close', exact: true }).click();
-  await phone.screenshot({ path: path.join(repo, 'phone-card-390.png') });
   assert.equal(await readFile(path.join(repo, 'workspace/original/report.html'), 'utf8'), original);
   assert.deepEqual(errors, []);
-  console.log(`Editable cards passed: create, form editing, Markdown, upload, drag/keyboard reorder, undo, draft recovery, save/reload, conflict recovery, failed saves, images/downloads, external links, dark/light 390/768/1280 layouts and paired mobile preview. Screenshots: ${repo}`);
+  console.log(`Editable cards passed: create, form editing, Markdown, upload, drag/keyboard reorder, undo, draft recovery, save/reload, conflict recovery, failed saves, images/downloads, external links, dark/light 390/768/1280 layouts. Screenshots: ${repo}`);
 } finally { await browser?.close(); await service.close(); }

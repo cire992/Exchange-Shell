@@ -45,7 +45,7 @@ try {
   & npm.cmd ci
   if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
   if ($Mode -eq 'Preview') {
-    Write-Host 'Opening the report preview. Full terminal and voice features use the desktop app.'
+    Write-Host 'Opening the report preview. Terminal chats use the desktop app.'
     & npm.cmd run dev
   } else {
     & npm.cmd run desktop:build

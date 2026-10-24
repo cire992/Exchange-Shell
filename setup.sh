@@ -32,7 +32,7 @@ if [ "$mode" = desktop ] && [ "$(uname)" = Darwin ] && [ "$(has_clt)" = false ];
 fi
 npm ci
 if [ "$mode" = preview ]; then
-  echo "Opening the report preview. Full terminal and voice features use the desktop app."
+  echo "Opening the report preview. Terminal chats use the desktop app."
   exec npm run dev
 fi
 if [ "$(uname)" = Darwin ]; then

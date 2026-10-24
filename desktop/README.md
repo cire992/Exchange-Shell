@@ -7,8 +7,8 @@ xterm.js. The windows share sessions and settings but minimize independently.
 
 | Path | Responsibility |
 | --- | --- |
-| `src/` | React Workspace, document previews, files, chat and voice UI |
-| `desktop/service/` | HTTP/WebSocket service, PTYs, session history, tools, voice connection |
+| `src/` | React Workspace, document previews, files and chat UI |
+| `desktop/service/` | HTTP/WebSocket service, PTYs, session history, tools |
 | `src-tauri/src/` | Cross-platform shell integration plus Windows taskbar identities, macOS login-shell PATH and key handling, native drag and optional system shortcut |
 | `workspace/workspace.json` | Card registry |
 | `workspace/_shared/` | Report CSS, image viewer and Help |
@@ -25,10 +25,8 @@ The service runs CLIs as the current user. Their available files and permissions
 follow their launch options and native account settings. Permission bypass is
 off by default. Do not expose the local service as a public web server.
 
-The optional voice frontend uses OpenAI Live. Routine actions call local tools;
-the Codex app-server coordinator handles broader orchestration with the user's
-configured model. Larger execution tasks go to visible worker terminals. The
-provider's native conversation ID is recorded when available for later resume.
+Each chat records the provider's native conversation ID when available, for
+later resume.
 Codex discovery checks both local and UTC date folders, keeps waiting through
 delayed first prompts, and reads bounded metadata records larger than one small
 buffer. Closing or resuming a tab can recover a missing ID from its exact Mr. Mak
@@ -47,12 +45,10 @@ favorites, folders recorded in Claude Code's `.claude.json` (`CLAUDE_CONFIG_DIR`
 is respected), Codex session metadata from the latest 60 day folders (`CODEX_HOME`
 is respected) and the folders of earlier Mr. Mak chats. Only folder names are read
 from those files. Worktrees, scratch folders, the Codex app's dated folders and
-missing folders are skipped. Pins are saved in `settings.pinnedProjects`. A phone
-may start a chat only in a listed folder. The voice coordinator uses the same list
-through `list_projects`.
+missing folders are skipped. Pins are saved in `settings.pinnedProjects`.
 
 Claude and Codex chats can switch between Terminal and Conversation. Conversation
-reads the same native transcript as the phone, sends a prompt through the PTY with
+reads the native transcript, sends a prompt through the PTY with
 bracketed paste and Enter, and serves media through short-lived `/media/` grants
 bound to one chat. A new chat opens in Terminal until it has a conversation, since
 the CLI may first ask about folder trust or sign-in. The last chosen view becomes
@@ -62,8 +58,7 @@ the default for other chats.
 the bottom of the terminal screen. Conversation shows it as buttons. An answer
 names the menu it saw; the service re-reads the screen, rejects a changed menu,
 then sends arrow keys and Enter one key at a time. Local links in messages open a
-Workspace preview, resolved against the chat folder. Desktop Read aloud uses the
-same local voices as the phone.
+Workspace preview, resolved against the chat folder.
 
 ## Fresh-chat handoff and project tabs
 
@@ -84,14 +79,6 @@ Fullscreen Claude scrolls its own conversation. Terminal snapshots preserve
 both mouse tracking and the requested SGR encoding, including saved screens,
 so switching tabs or reconnecting does not disable its mouse wheel. Classic
 Claude and Codex continue using local terminal scrollback.
-
-## Local microphone dictation
-
-Desktop chats, the Mak composer and paired mobile chats support free local Whisper
-dictation. Follow [setup and review behavior](../docs/mobile-access.md#voice-input).
-The local engine is the default. Choose Free/Paid/Off in the top-right phone
-button (**Phone settings**) or **Settings → Speech-to-text**. The choice is saved
-and shared with paired phones. Paid providers require an API key on the computer.
 
 ## Terminal appearance
 
@@ -145,7 +132,7 @@ of each platform's app: Edge (WebView2) must be available on Windows; on macOS
 they use Playwright WebKit (WKWebView), so run `npx playwright install webkit`
 once after `npm ci`, as the macOS CI job does. Set `MRMAK_TEST_BROWSER` to
 `msedge`, `chrome`, `chromium` or `webkit` to override; `chromium` and `webkit`
-need `npx playwright install <name>` first. Live voice and subscription smoke
+need `npx playwright install <name>` first. Subscription smoke
 checks are separate scripts with explicit opt-in flags; they are never part of
 the default test command.
 
@@ -168,15 +155,3 @@ and 2.0.21 on Windows. No paid model calls are made.
 Windows x64, Linux and macOS are supported native targets. The macOS app is
 ad-hoc signed (not notarised) and Apple Silicon only; build steps and limits are in
 [docs/macos.md](../docs/macos.md).
-
-Read aloud uses fixed, free local voices: Michael (US man) and Emma (UK woman).
-Run `powershell -ExecutionPolicy Bypass -File scripts/setup-local-read-aloud.ps1`
-on Windows once. On macOS, run `brew install python@3.12`, then
-`python3.12 scripts/setup-local-voice.py read-aloud`; on Linux, use any
-Python 3.10-3.12. See
-[local voice setup](../docs/mobile-access.md#local-voice-setup-on-the-computer).
-Models and the CPU Python environment stay under the ignored
-`.cache/read-aloud` folder; no cloud speech key or paid account is needed.
-Phone settings stores the voice choice. The mobile service lazily starts its
-own voice worker and releases it after idle time; updating service files requires
-a user-approved application restart.
