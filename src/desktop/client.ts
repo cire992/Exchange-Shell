@@ -15,7 +15,7 @@ const listeners = new Set<() => void>()
 const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
   ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [],
-  settings: { defaultAgent: 'codex', defaultBypass: false }, preview: null,
+  settings: { defaultAgent: 'codex' }, preview: null,
 }
 let socket: WebSocket | null = null
 let started = false

@@ -15,7 +15,8 @@ you can keep using the same agents outside the app.
   - [Codex CLI](https://developers.openai.com/codex/cli) (`npm install -g @openai/codex`)
   - [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code). It needs
     [Git for Windows](https://gitforwindows.org/), whose Git Bash it uses as its
-    shell.
+    shell, and a Kimi plan that includes Kimi Code; otherwise every turn ends
+    with a 403 error.
 
 PowerShell chats need nothing extra. OpenCode and Antigravity, supported by the
 upstream code, also work when installed.
@@ -57,8 +58,11 @@ finish active work before quitting.
 
 In Chats, press **+**, choose an agent and a working folder, and give the chat a
 clear English name. The CLI's normal permission prompts are on; **Bypass agent
-permission prompts** is a deliberate choice for one chat. New Claude Code and
-Codex chats default to `xhigh` reasoning effort.
+permission prompts** is a deliberate choice for one chat, never remembered for
+the next one. A bypassed chat carries an amber **BYPASS** badge on its tab, in its
+header and in History. The first bypassed Claude Code chat asks you to accept
+Claude's own Bypass Permissions warning once. New Claude Code and Codex chats
+default to `xhigh` reasoning effort.
 
 Claude Code can use a Claude Pro or Max login, and Codex an eligible ChatGPT
 login. Exchange starts the real installed CLI and keeps its normal authentication

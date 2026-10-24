@@ -19,7 +19,9 @@ and its card registry.
   resumes the same native CLI conversation.
 - **Conversation view** for Claude Code and Codex: Markdown, images, and CLI
   permission menus as buttons. Long chats offer a fresh chat with a handoff.
-- **Per-chat permission bypass,** off unless chosen when the chat starts.
+- **Per-chat permission bypass,** off unless chosen when the chat starts and
+  never remembered; a bypassed chat carries an amber BYPASS badge on its tab, in
+  its header and in History.
 - **Workspace window:** a placeholder for mission control, plus a rail with
   files and previews, skills, MCP connections and settings.
 

@@ -89,7 +89,7 @@ export function codexSupportsNoDaemon(env = process.env) {
   return codexHelp.get(key);
 }
 
-export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt, readDir, noDaemon = false } = {}) {
+export function terminalCommand(agent, { bypass = false, resumeId, nativeId, effort, opencodeMajor = 1, antigravityLog, initialPrompt, readDir, noDaemon = false, kimiAuto = false } = {}) {
   if (!AGENTS.some(item => item.id === agent)) throw new Error('Unknown agent');
   resumeId = nativeConversationId(resumeId); nativeId = nativeConversationId(nativeId);
   initialPrompt = initialPromptArgument(initialPrompt);
@@ -126,7 +126,8 @@ export function terminalCommand(agent, { bypass = false, resumeId, nativeId, eff
     if (antigravityLog) args.push('--log-file', antigravityLog);
   } else if (agent === 'kimi') {
     if (resumeId) args.push('--session', resumeId);
-    if (bypass) args.push('--yolo');
+    // Kimi Code 2.x: --auto is the full bypass; --yolo still asks for risky actions.
+    if (bypass) args.push(kimiAuto ? '--auto' : '--yolo');
   } else if (agent === 'opencode') {
     // A private v2 server keeps each tab's observer and native session separate.
     if (opencodeMajor >= 2) args.push('--standalone');
@@ -148,7 +149,9 @@ export function childEnvironment(repo) {
   }
   // Drop host-agent identity from the parent so every terminal is an independent CLI.
   for (const key of Object.keys(env)) {
-    if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CODEX_THREAD_ID|CODEX_TURN_ID|CODEX_SHELL|ANTIGRAVITY_AGENT|MRMAK_TOKEN|MRMAK_PARENT_PID)$/.test(key) || key.startsWith('MRMAK_OPENCODE_')) delete env[key];
+    // A shell started from inside a Claude Code session inherits its session markers;
+    // CLAUDE_CODE_CHILD_SESSION, for one, turns off the child's transcript (and so History restore).
+    if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CODE_CHILD_SESSION|CLAUDE_CODE_SESSION_ID|CLAUDE_CODE_HOST_SESSION_ID|CLAUDE_CODE_SESSION_ATTENDED|CLAUDE_CODE_MESSAGING_SOCKET|CLAUDE_CODE_MESSAGING_TOKEN|CLAUDE_PID|CODEX_THREAD_ID|CODEX_TURN_ID|CODEX_SHELL|ANTIGRAVITY_AGENT|MRMAK_TOKEN|MRMAK_PARENT_PID)$/.test(key) || key.startsWith('MRMAK_OPENCODE_')) delete env[key];
   }
   return env;
 }
