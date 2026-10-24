@@ -22,10 +22,12 @@ import { answerPrompt, readPrompt } from './terminal-prompt.mjs';
 import { rewindToMessage } from './message-edit.mjs';
 import { Handoffs } from './handoff.mjs';
 import { chatCommands } from './chat-commands.mjs';
+import { ExchangeCore } from './exchange/core.mjs';
+import { existsSync } from 'node:fs';
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
 
-export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions }) {
+export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, exchange = new ExchangeCore(), startExchange = false }) {
   repo = await realpath(repo);
   stateDir ||= path.join(repo, '.mrmak');
   const files = new Files(repo);
@@ -45,6 +47,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   // a remembered bypass choice) are dropped on load.
   const { coordinatorModel, coordinatorEffort, voiceName, voiceStyle, transcribeProvider, workspaceRoute, defaultBypass, ...savedSettings } = await readJson(settingsPath, {}) || {};
   let settings = { defaultAgent: 'codex', terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', handoffAfter: 40, groupTabsByProject: false, systemEvents: 'compact', ...savedSettings };
+  // The Exchange core sits beside this repository by default (Desktop/3dExchange next to Desktop/Exchange-Shell).
+  if (settings.exchangeCore === undefined) { const sibling = path.resolve(repo, '..', '3dExchange'); settings.exchangeCore = existsSync(sibling) ? sibling : null; }
+  const exchangeImages = `/exchange-images/${secret()}`;
+  const configureExchange = () => exchange.configure({ core: settings.exchangeCore, dataDir: settings.exchangeDataDir || null })
+    .catch(error => broadcast('service-error', { error: publicError(error) }));
   const projectList = () => recentProjects({ repo, sessions: sessions.list(), pinned: settings.pinnedProjects || [] });
   let selectedId = sessions.active().some(item => item.id === settings.selectedId) ? settings.selectedId : sessions.active()[0]?.id || null;
   let settingsTimer;
@@ -72,6 +79,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     sessions.input(id, attachmentText(verified, session.agent), { submit: false });
     return { attached: verified, submitted: false };
   };
+  exchange.on('change', view => broadcast('exchange', { exchange: view }));
   sessions.on('session', session => { broadcast('session', { session }); integrations.publish('session', { event: session.status, session }).catch(() => {}); });
   sessions.on('screen-cleared', ({ id }) => broadcast('screen-cleared', { id }));
   sessions.on('service-error', error => broadcast('service-error', { error: publicError(error) }));
@@ -106,9 +114,22 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       // is issued only through an authorized messages request for this chat.
       const media = /^\/media\/([a-f0-9-]{36})\/([a-zA-Z0-9_-]{43})$/.exec(url.pathname);
       if (media && ['GET', 'HEAD'].includes(request.method)) return await conversationMedia.serve(request, response, media[1], media[2], 'desktop', url.searchParams.get('download') === '1');
+      // Thumbnails from the Exchange core, for <img>: the per-launch grant stands in for the token.
+      if (url.pathname.startsWith(`${exchangeImages}/`) && ['GET', 'HEAD'].includes(request.method)) {
+        const uid = url.pathname.slice(exchangeImages.length + 1);
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(uid)) throw Object.assign(new Error('Not found'), { status: 404 });
+        return exchange.proxy(request, response, `/api/v1/dossiers/${uid}/thumbnail`);
+      }
       if (url.pathname.startsWith('/api/')) {
         authorize(request);
         const method = request.method;
+        // The Exchange core's API, proxied with its own token; its body is streamed, not read here.
+        if (url.pathname === '/api/exchange/status' && method === 'GET') return json(response, 200, exchange.view);
+        if (url.pathname === '/api/exchange/restart' && method === 'POST') { await exchange.restart(); return json(response, 200, exchange.view); }
+        if (url.pathname.startsWith('/api/exchange/')) {
+          if (!['GET', 'HEAD'].includes(method)) throw Object.assign(new Error('The Exchange API is read-only for now'), { status: 405 });
+          return exchange.proxy(request, response, `/api/v1/${url.pathname.slice('/api/exchange/'.length)}${url.search}`);
+        }
         if (method === 'POST' && url.pathname === '/api/files/import') {
           if (Number(request.headers['content-length']) > MAX_FILE_BYTES) throw Object.assign(new Error('Choose files of 1 GB or less.'), { status: 413 });
           const result = await importFile(request, url.searchParams.get('folder'), url.searchParams.get('name'));
@@ -123,7 +144,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         }
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? 12 * 1024 * 1024 : 256 * 1024) : {};
         if (method === 'GET' && url.pathname === '/api/bootstrap') {
-          return json(response, 200, { repo, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), settings, selectedId, notices });
+          return json(response, 200, { repo, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), settings, selectedId, notices, exchange: exchange.view, exchangeImages });
         }
         if (method === 'GET' && url.pathname === '/api/projects') {
           const matches = await projects.detect(url.searchParams.get('path') || repo);
@@ -199,7 +220,17 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (['dark', 'light', 'system'].includes(data.workspaceTheme)) settings.workspaceTheme = data.workspaceTheme;
           if (data.groupColors && typeof data.groupColors === 'object' && !Array.isArray(data.groupColors)) settings.groupColors = Object.fromEntries(Object.entries(data.groupColors).filter(([name, value]) => name.length <= 60 && typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)).slice(0, 200).map(([name, value]) => [name, value.toLowerCase()]));
           if (Array.isArray(data.collapsedGroups)) settings.collapsedGroups = [...new Set(data.collapsedGroups.filter(item => typeof item === 'string' && item.length <= 60))].slice(0, 200);
-          await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
+          const folder = value => value === null || value === '' ? null : typeof value === 'string' && path.isAbsolute(value.trim()) && !/[\x00-\x1f]/.test(value) ? path.resolve(value.trim()) : undefined;
+          let exchangeChanged = false;
+          for (const key of ['exchangeCore', 'exchangeDataDir']) {
+            if (!(key in data)) continue;
+            const value = folder(data[key]);
+            if (value === undefined) throw new Error('Choose an absolute folder.');
+            if (value !== (settings[key] ?? null)) { settings[key] = value; exchangeChanged = true; }
+          }
+          await saveSettings(); broadcast('settings', { settings });
+          if (exchangeChanged) configureExchange();
+          return json(response, 200, settings);
         }
         // Bypass is chosen per chat and never inherited from a setting.
         if (method === 'POST' && url.pathname === '/api/sessions') { const session = await sessions.create({ ...data, bypass: data.bypass === true }); await integrations.publish('session', { event: 'started', session }); focus(session.id); return json(response, 201, session); }
@@ -316,14 +347,15 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     ws.on('close', () => { clearTimeout(authTimer); clients.delete(ws); });
     ws.on('error', () => {});
   });
+  if (startExchange) configureExchange();
   const restoreTimer = restoreSessions ? setTimeout(() => sessions.restore().catch(error => sessions.emit('service-error', error)), 100) : null;
   return {
-    origin, contentOrigin: files.origin, token, sessions, transcripts, files, projects, knowledge, integrations,
+    origin, contentOrigin: files.origin, token, sessions, transcripts, files, projects, knowledge, integrations, exchange, exchangeImages,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
       nativeMessage: event => nativeSettings.receive(event),
       async close() {
         if (closing) return; closing = true; mcp.close(); nativeSettings.close(); await files.writes.catch(() => {});
-      clearTimeout(restoreTimer); clearTimeout(settingsTimer); await saveSettings();
+      clearTimeout(restoreTimer); clearTimeout(settingsTimer); await saveSettings(); await exchange.stop();
       for (const ws of wss.clients) ws.terminate();
       wss.close(); await sessions.close();
       server.closeAllConnections(); contentServer.closeAllConnections();

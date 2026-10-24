@@ -3,6 +3,7 @@ import { api, onServiceEvent, useDesktop } from './client'
 import type { Settings } from './types'
 import { Icon } from './Icons'
 import ThemePicker from '../components/ThemePicker'
+import CoreSettings from '../exchange/CoreSettings'
 import { visibleAgents } from '../exchange/agents'
 import { isMac, shellName } from './platform'
 
@@ -35,6 +36,7 @@ export default function WorkspaceSettings({ onClose }: { onClose: () => void }) 
       <label>Terminal appearance<select disabled={busy} value={settings.terminalAppearance || 'original'} onChange={event => void change({ terminalAppearance: event.target.value as Settings['terminalAppearance'] })}><option value="original">Original CLI colors</option><option value="focus">Exchange Focus · muted colors</option></select></label><p>Original preserves CLI colors, including added and removed lines. Focus uses muted colors. Your choice is saved for all chats and applies immediately without restarting them.</p>
       {isMac && <label className="setting-toggle"><span>Use Option as Meta key<small>Sends Meta shortcuts to the CLI. When off, Option types your keyboard layout's characters, such as @ or #.</small></span><input type="checkbox" checked={!!settings.terminalOptionMeta} disabled={busy} onChange={event => void change({ terminalOptionMeta: event.target.checked })} /></label>}
     </section>
+      <CoreSettings />
       <section><h3>Project</h3><p className="settings-repo">{repo}</p><p>Skills, knowledge and processes belong to this repository.</p></section>
       {error && <p className="desk-error-inline" role="alert">{error}</p>}
     </div></div>

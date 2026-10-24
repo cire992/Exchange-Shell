@@ -37,6 +37,18 @@ preserved. Terminal URLs and OSC 8 links use xterm link handlers. New-window
 requests from both app windows open HTTP(S) links in the system default browser
 (the Windows shell association), while the current app view stays open.
 
+## The Exchange core's service
+
+`desktop/service/exchange/core.mjs` starts the Exchange core's local API (`exchange serve`, in the
+core repository) from the folder in Settings › Exchange core, and stops it with the shell. The
+windows reach it through this service:
+- `/api/exchange/<route>` is the core's `/api/v1/<route>`, behind this service's token.
+- `/exchange-images/<grant>/<uid>` serves thumbnails.
+
+`src/exchange/api.gen.ts` holds types generated from the core's `docs/api/openapi.json`; regenerate
+them with `npm run exchange:types` after the core's API changes. See `docs/EXCHANGE_PROGRESS.md`
+(6c).
+
 ## Projects and the Conversation view
 
 New chat lists recent projects from `recent-projects.mjs`: this repository, pinned
