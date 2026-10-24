@@ -32,4 +32,4 @@ put chronological implementation details in a separate log.
 For a completed feature, lead with its practical result, then summarize the
 change and verification. Link the relevant report or artifacts. Distinguish a
 prepared build from an installed update and a submitted job from a reviewed
-asset. Read `workspace-authoring` when the handoff is a Workspace deliverable.
+asset.

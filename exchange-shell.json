@@ -1,0 +1,4 @@
+{
+  "name": "Exchange Shell",
+  "about": "Marks the root of the Exchange desktop shell. The app looks for this file when it starts from a checkout."
+}

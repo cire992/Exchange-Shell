@@ -2,24 +2,24 @@
 
 The desktop app is a Tauri 2 shell around two webviews. It starts one local Node
 service, binds it to loopback and gives each window the authenticated local URL.
-Workspace renders the React UI and report files. Chats renders real PTYs through
-xterm.js. The windows share sessions and settings but minimize independently.
+Workspace shows a placeholder for Exchange's mission control (rebuilt on the
+Exchange service in roadmap phase 6) and the files rail with document previews.
+Chats renders real PTYs through xterm.js. The windows share sessions and settings but minimize independently.
 
 | Path | Responsibility |
 | --- | --- |
-| `src/` | React Workspace, document previews, files and chat UI |
+| `src/` | React frontend: chats, files rail and previews; `src/exchange/` holds Exchange's own UI |
 | `desktop/service/` | HTTP/WebSocket service, PTYs, session history, tools |
-| `src-tauri/src/` | Cross-platform shell integration plus Windows taskbar identities, macOS login-shell PATH and key handling, native drag and optional system shortcut |
-| `workspace/workspace.json` | Card registry |
-| `workspace/_shared/` | Report CSS, image viewer and Help |
+| `src-tauri/src/` | Shell integration: Windows taskbar identities, native drag and the optional Win-key shortcut |
+| `exchange-shell.json` | Marks the repository root the shell starts in |
+| `workspace/_shared/` | Report CSS for previews and the image viewer, and the Help page |
 | `.mrmak/` | Local runtime state; ignored by Git |
 
 `npm run desktop:build` runs `desktop/prepare.mjs`, builds the React frontend,
 packages the service with a Node executable and production dependencies, then
-builds the Tauri executable and platform installers. On Linux, use
-`npm run desktop:build:appimage` for the distributable AppImage. The recipient
-selects their own repository; its content is served from disk rather than baked
-into the installer.
+builds the Tauri executable and the NSIS installer. The repository is chosen at
+start (the folder containing `exchange-shell.json`); its content is served from
+disk rather than baked into the installer.
 
 The service runs CLIs as the current user. Their available files and permissions
 follow their launch options and native account settings. Permission bypass is
@@ -29,21 +29,20 @@ Each chat records the provider's native conversation ID when available, for
 later resume.
 Codex discovery checks both local and UTC date folders, keeps waiting through
 delayed first prompts, and reads bounded metadata records larger than one small
-buffer. Closing or resuming a tab can recover a missing ID from its exact Mr. Mak
+buffer. Closing or resuming a tab can recover a missing ID from its exact launch
 origin marker. Shared working directories alone are not proof of ownership.
 
 New Codex and Claude chats default to `xhigh`; explicit saved effort choices are
 preserved. Terminal URLs and OSC 8 links use xterm link handlers. New-window
 requests from both app windows open HTTP(S) links in the system default browser
-(the Windows shell association, `open` on macOS, `xdg-open` on Linux), while the
-current app view stays open.
+(the Windows shell association), while the current app view stays open.
 
 ## Projects and the Conversation view
 
-New chat lists recent projects from `recent-projects.mjs`: the Workspace, pinned
+New chat lists recent projects from `recent-projects.mjs`: this repository, pinned
 favorites, folders recorded in Claude Code's `.claude.json` (`CLAUDE_CONFIG_DIR`
 is respected), Codex session metadata from the latest 60 day folders (`CODEX_HOME`
-is respected) and the folders of earlier Mr. Mak chats. Only folder names are read
+is respected) and the folders of earlier chats. Only folder names are read
 from those files. Worktrees, scratch folders, the Codex app's dated folders and
 missing folders are skipped. Pins are saved in `settings.pinnedProjects`.
 
@@ -83,7 +82,7 @@ Claude and Codex continue using local terminal scrollback.
 ## Terminal appearance
 
 Settings → Chats → Terminal appearance offers **Original CLI colors** (the default)
-and **Mr. Mak Focus** (muted colors). Original preserves CLI diff colors for added
+and **Exchange Focus** (muted colors). Original preserves CLI diff colors for added
 and removed lines. The choice is saved for all desktop chats and applies to open
 terminals immediately without restarting sessions. Existing saved preferences
 are retained. The same choice is available in each chat’s options menu.
@@ -112,27 +111,22 @@ activity. Native CLI history must remain on disk for conversation restoration.
 npm ci
 npm run lint
 npm test
-npm run test:template
+npm run test:repo
 npm run build
 npm run desktop:test:ui
-npm run test:preview
+npm run desktop:prepare
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-The same commands run in zsh or bash on macOS and Linux.
+`cargo test` needs `.cache/desktop-runtime`, which `desktop:prepare` creates.
 
 The root install also installs the locked `desktop/service` dependencies. If
 you deliberately use `npm ci --ignore-scripts`, run
-`npm --prefix desktop/service ci` before tests or the local service, and on
-macOS also `node scripts/fix-pty-permissions.mjs`: npm can unpack node-pty's
-`spawn-helper` without the execute bit, and terminals then fail with
-`posix_spawnp failed`.
+`npm --prefix desktop/service ci` before tests or the local service.
 
-UI tests use an isolated repository and fake terminals. They run in the engine
-of each platform's app: Edge (WebView2) must be available on Windows; on macOS
-they use Playwright WebKit (WKWebView), so run `npx playwright install webkit`
-once after `npm ci`, as the macOS CI job does. Set `MRMAK_TEST_BROWSER` to
-`msedge`, `chrome`, `chromium` or `webkit` to override; `chromium` and `webkit`
-need `npx playwright install <name>` first. Subscription smoke
+UI tests use an isolated repository and fake terminals. They run in Edge, the
+engine behind WebView2. Set `MRMAK_TEST_BROWSER` to `msedge`, `chrome` or
+`chromium` to override; `chromium` needs `npx playwright install chromium` first. Subscription smoke
 checks are separate scripts with explicit opt-in flags; they are never part of
 the default test command.
 
@@ -142,16 +136,8 @@ OpenCode has a separate no-account integration test against a local mock model:
 node desktop/service/test-opencode-native.mjs --binary C:\path\to\opencode.exe --tui
 ```
 
-On macOS or Linux:
-
-```sh
-node desktop/service/test-opencode-native.mjs --binary "$(command -v opencode)" --tui
-```
-
 It isolates the CLI's home and data directories, verifies two separate native
 histories, then closes and resumes a real terminal. Tested with OpenCode 1.18.3
 and 2.0.21 on Windows. No paid model calls are made.
 
-Windows x64, Linux and macOS are supported native targets. The macOS app is
-ad-hoc signed (not notarised) and Apple Silicon only; build steps and limits are in
-[docs/macos.md](../docs/macos.md).
+Windows x64 is the only target.

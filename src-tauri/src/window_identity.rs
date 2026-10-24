@@ -43,7 +43,7 @@ pub fn set_window(window: &tauri::WebviewWindow) -> Result<(), Box<dyn std::erro
     window.set_icon(tauri::image::Image::from_bytes(png)?)?;
     let icon = icon_path(app, label)?;
     let command = format!("\"{}\" --show {label}", std::env::current_exe()?.display());
-    let title = if label == "chats" { "Mr. Mak Chats" } else { "Mr. Mak Workspace" };
+    let title = if label == "chats" { "Exchange Chats" } else { "Exchange Workspace" };
     unsafe {
         let hwnd = window.hwnd()?.0;
         let dpi = GetDpiForWindow(hwnd);
@@ -64,10 +64,12 @@ pub fn set_window(window: &tauri::WebviewWindow) -> Result<(), Box<dyn std::erro
 
 pub fn refresh_shortcuts(app: &tauri::AppHandle) {
     let mut shortcuts = Vec::new();
-    if let Ok(desktop) = app.path().desktop_dir() { shortcuts.push(desktop.join("Mr. Mak Workspace.lnk")); }
+    // The installer names its shortcuts after the product.
+    let name = format!("{}.lnk", app.config().product_name.as_deref().unwrap_or("Exchange"));
+    if let Ok(desktop) = app.path().desktop_dir() { shortcuts.push(desktop.join(&name)); }
     if let Some(roaming) = std::env::var_os("APPDATA") {
         let root = PathBuf::from(roaming);
-        shortcuts.push(root.join("Microsoft/Windows/Start Menu/Programs/Mr. Mak Workspace.lnk"));
+        shortcuts.push(root.join("Microsoft/Windows/Start Menu/Programs").join(&name));
         let pinned = root.join("Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar");
         if let Ok(entries) = fs::read_dir(pinned) {
             shortcuts.extend(entries.flatten().map(|entry| entry.path()).filter(|path| path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"))));

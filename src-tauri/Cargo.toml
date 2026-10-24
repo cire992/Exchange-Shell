@@ -1,7 +1,7 @@
 [package]
 name = "mrmak-workspace"
 version = "0.6.0"
-description = "Mr. Mak workspace and independent agent terminals"
+description = "Exchange desktop shell: chats with CLI agents and the Workspace window"
 authors = ["Mr. Mak Workspace contributors"]
 edition = "2021"
 rust-version = "1.77.2"

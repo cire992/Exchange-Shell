@@ -93,7 +93,6 @@ export async function startDesktop() {
   try {
     const initial = await api<DesktopState>('/bootstrap')
     const selected = localStorage.getItem('mrmak.selectedChat')
-    if (surface === 'workspace' && !location.hash && initial.settings.workspaceRoute?.startsWith('#/')) history.replaceState(null, '', location.pathname + location.search + initial.settings.workspaceRoute)
     update({ ...initial, ready: true, error: null, selectedId: initial.sessions.some(item => item.id === selected) ? selected : initial.selectedId })
     connect()
   } catch (error) { started = false; reportError(error) }

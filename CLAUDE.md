@@ -1,7 +1,8 @@
-# Mr. Mak Workspace
+# Exchange Shell
 
 Read [AGENTS.md](AGENTS.md) for the repository rules and
-[getting started](docs/getting-started.md) for setup.
+[docs/EXCHANGE_PROGRESS.md](docs/EXCHANGE_PROGRESS.md) for the plan and current
+state; [getting started](docs/getting-started.md) covers setup.
 
 Complete project skills are available in `.claude/skills/`, including their
 scripts and references. `.agents/skills/` is the maintained source shared with

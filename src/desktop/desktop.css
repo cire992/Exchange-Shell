@@ -16,13 +16,9 @@
 .desk-muted{color:#8a8b97;padding:16px;font-size:12px;line-height:1.6}
 .desk-error-inline{font-size:12px;line-height:1.5;color:#f0a4a4;padding:9px 0}
 .workspace-surface{position:relative;min-width:0;flex:1;height:100%;overflow:hidden}
-.workspace-root .app-layout{height:100%;width:100%}
-.workspace-root .sidebar{position:absolute;z-index:45;height:100%;box-shadow:25px 0 70px #0008}
+
 .workspace-root .main{margin-left:0!important;min-width:0}
-.workspace-root .sidebar-collapsed .sidebar{visibility:hidden}
-.workspace-root .topbar{--topbar-h:44px;min-height:44px;height:auto;padding:10px 20px 10px 60px;font-size:12px}
-.workspace-root .sidebar-reopen{top:3px;left:12px;z-index:31}
-.workspace-root .report-frame{border:0}
+
 .desktop-boot{height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0c0d10;color:#e5a8b9;gap:14px}
 .desktop-boot h1{font:36px var(--font-display);margin:0}.desktop-boot p{color:#a0a0ad;font-size:13px;max-width:420px;text-align:center}
 .desktop-error{position:fixed;z-index:200;left:12px;right:58px;top:10px;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #e9979760;border-radius:10px;background:#2c1c25;box-shadow:0 8px 40px #0006;font-size:12px;line-height:1.5}

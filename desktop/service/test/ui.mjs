@@ -13,13 +13,10 @@ const copyKey = mac ? 'Meta+c' : 'Control+c';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
 const repo = await mkdtemp(path.join(root, '.cache/workspace-ui-'));
-for (const dir of ['workspace/test', 'knowledge', 'processes', '.claude/skills/example', '.agents/skills/example', 'inbox', 'projects']) await mkdir(path.join(repo, dir), { recursive: true });
+for (const dir of ['knowledge', 'processes', '.claude/skills/example', '.agents/skills/example', 'inbox', 'projects']) await mkdir(path.join(repo, dir), { recursive: true });
 await writeFile(path.join(repo, '.claude/skills/example/SKILL.md'), '# Example skill\n\n**Read me**\n');
 const documentPath = path.join(repo, 'knowledge/notes.md');
 await writeFile(documentPath, '# A useful document\n\n| Name | State |\n| --- | --- |\n| Example | Ready |\n\n**Bold text**\n');
-const steps = Array.from({ length: 12 }, (_, index) => ({ name: `Step ${index + 1} - complete English title`, path: `step${index}.html` }));
-for (const [index, step] of steps.entries()) await writeFile(path.join(repo, 'workspace/test', step.path), `<h1>Document ${index + 1}</h1><p>Readable content.</p>`);
-await writeFile(path.join(repo, 'workspace/workspace.json'), JSON.stringify({ entities: [{ id: 'test', folder: 'test', title: 'Workspace test', category: 'test', created: '2026-09-15', status: 'active', steps }] }));
 await cp(path.join(root, 'public/assets'), path.join(root, 'dist/assets'), { recursive: true });
 const mcpHome = path.join(repo, 'fake-home'); await mkdir(path.join(mcpHome, '.codex'), { recursive: true });
 await writeFile(path.join(repo, '.mcp.json'), JSON.stringify({ mcpServers: { 'fixture-tools': { url: 'https://fixture.example/mcp', headers: { Authorization: 'private-ui-fixture-token' } } } }));
@@ -40,26 +37,8 @@ try {
   const context = await browser.newContext({ viewport: { width: 900, height: 800 }, permissions: clipboardPermissions });
   const page = await context.newPage(); page.setDefaultTimeout(10000);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
-  await page.goto(service.urls.workspace + '#/test/0');
-  for (let index = 0; index < 12; index++) { await page.getByRole('tab').nth(index).click(); await page.frameLocator('iframe.report-frame').getByRole('heading', { name: `Document ${index + 1}`, exact: true }).waitFor(); }
-  let releaseReport;
-  const delayedReport = new Promise(resolve => { releaseReport = resolve; });
-  await page.route('**/workspace/test/step0.html*', async route => { if (route.request().method() === 'GET') await delayedReport; await route.continue(); });
-  await page.getByRole('tab').nth(0).click();
-  try {
-    await page.getByRole('status').filter({ hasText: 'Opening report' }).waitFor();
-    assert.equal(await page.locator('iframe.report-frame').evaluate(element => getComputedStyle(element).visibility), 'hidden');
-    assert.equal(await page.locator('.report-document').evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(16, 17, 21)');
-  } finally { releaseReport(); }
-  await page.locator('.report-document[aria-busy=false]').waitFor();
-  assert.equal(await page.frameLocator('iframe.report-frame').locator('body').evaluate(element => getComputedStyle(element).scrollbarColor), 'rgb(81, 76, 89) rgb(17, 18, 23)');
-  await page.unroute('**/workspace/test/step0.html*');
-  await page.route('**/workspace/test/step1.html', route => route.request().method() === 'HEAD' ? route.fulfill({ status: 404 }) : route.continue());
-  await page.getByRole('tab').nth(1).click();
-  await page.getByText('Page unavailable (404).', { exact: true }).waitFor();
-  await page.unroute('**/workspace/test/step1.html');
-  await page.getByRole('tab').nth(2).click();
-  await page.locator('.report-document[aria-busy=false]').waitFor();
+  await page.goto(service.urls.workspace);
+  await page.getByRole('heading', { name: 'Mission control is not wired up yet' }).waitFor();
   await page.getByRole('button', { name: 'Toggle files', exact: true }).click();
   await page.getByRole('treeitem', { name: /^knowledge$/ }).click();
   await page.getByRole('treeitem', { name: /^notes.md/ }).click();
@@ -149,7 +128,7 @@ try {
     }
   }
   assert.deepEqual(errors, []);
-  console.log('UI passed: 12 clickable wrapping tabs; Markdown preview/edit/save/conflict/draft; local Skills; MCP filtering, checks and hidden credentials; terminal bottom row visible across four window/font sizes; Codex/Claude/OpenCode/Kimi copy and scroll; PowerShell interrupt.');
+  console.log('UI passed: Workspace placeholder; Markdown preview/edit/save/conflict/draft; local Skills; MCP filtering, checks and hidden credentials; terminal bottom row visible across four window/font sizes; Codex/Claude/OpenCode/Kimi copy and scroll; PowerShell interrupt.');
 } finally {
   await browser?.close();
   for (const session of service.sessions.items.values()) session.process = null;

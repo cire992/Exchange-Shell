@@ -1,27 +1,24 @@
 # Security reports
 
-Please report suspected vulnerabilities through
-[GitHub private vulnerability reporting](https://github.com/witnesstodark/mr-mak-workspace/security/advisories/new).
-Keep reproduction steps and patches private until we have reviewed the report
-and agreed on disclosure. Do not put credentials or personal project content
-in a public issue.
+Exchange is a personal, single-user tool. Please report suspected
+vulnerabilities through
+[GitHub private vulnerability reporting](https://github.com/cire992/Exchange-Shell/security/advisories/new)
+rather than a public issue. Do not put credentials or personal project content
+in a report; remove real tokens, account details and private files from logs or
+screenshots.
 
-Include the app version, operating system, affected feature, expected permission
-behavior, and the smallest reproduction you can provide. Remove real tokens,
-account details, and private files from logs or screenshots.
-
-We review reports against the latest release. Older releases may need an update
-to receive a fix. A public issue acknowledging a report does not mean that the
-underlying vulnerability has been resolved.
+A vulnerability in code inherited unchanged from Mr. Mak Workspace may also
+affect upstream; report it there too, through
+[its private reporting](https://github.com/witnesstodark/mr-mak-workspace/security/advisories/new).
 
 ## Local service and permissions
 
-Mr. Mak runs on the current user's machine and starts CLI tools as that user.
+Exchange runs on the current user's machine and starts CLI tools as that user.
 The CLI's own permission and sandbox settings remain important. Bypass is an
-explicit choice and is off by default. Mr. Mak is not an operating-system
-sandbox for arbitrary programs running under the same account.
+explicit choice for one chat and is off by default. Exchange is not an
+operating-system sandbox for programs running under the same account.
 
-The desktop service listens on loopback. Do not expose it through a public
-proxy, tunnel, or network interface. Its diagnostic `runtime.json` contains the
+The desktop service listens on loopback only. Do not expose it through a public
+proxy, tunnel or network interface. Its diagnostic `runtime.json` contains the
 process ID and local origin, not the credentials used by the desktop windows.
 Keep `.env`, local state and native CLI histories out of shared repositories.

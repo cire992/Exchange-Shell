@@ -19,7 +19,7 @@ mod win_key;
 #[cfg(target_os = "macos")]
 mod mac_key;
 
-// The "recall Mr. Mak" shortcut: a bare Win-key tap on Windows, ⌃⌥⌘Space on macOS.
+// The "recall Exchange" shortcut: a bare Win-key tap on Windows, ⌃⌥⌘Space on macOS.
 #[cfg(windows)]
 type RecallShortcut = win_key::WinKeyShortcut;
 #[cfg(target_os = "macos")]
@@ -137,29 +137,32 @@ fn start_file_drag(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
 #[derive(Debug)]
 struct Cancelled;
 impl std::fmt::Display for Cancelled {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("No Workspace repository selected") }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("No Exchange Shell repository selected") }
 }
 impl std::error::Error for Cancelled {}
+
+// The shell runs from a checkout of this repository, recognized by its marker file.
+const MARKER: &str = "exchange-shell.json";
 
 fn repo_path(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let config = app.path().app_config_dir()?.join("repository.json");
     let args: Vec<String> = std::env::args().collect();
     let supplied = args.iter().position(|v| v == "--repo").and_then(|i| args.get(i + 1)).map(PathBuf::from);
     let saved = fs::read_to_string(&config).ok().and_then(|s| serde_json::from_str::<String>(&s).ok()).map(PathBuf::from);
-    let current = std::env::current_dir().ok().filter(|root| root.join("workspace/workspace.json").is_file());
+    let current = std::env::current_dir().ok().filter(|root| root.join(MARKER).is_file());
     let mut selected = supplied.or(saved).or(current);
     loop {
         if let Some(ref root) = selected {
-            if root.join("workspace/workspace.json").is_file() {
+            if root.join(MARKER).is_file() {
                 fs::create_dir_all(config.parent().unwrap())?;
                 fs::write(&config, serde_json::to_string(&root.to_string_lossy())?)?;
                 return Ok(root.to_owned());
             }
         }
-        selected = rfd::FileDialog::new().set_title("Choose your Mr. Mak Workspace repository").pick_folder();
+        selected = rfd::FileDialog::new().set_title("Choose your Exchange Shell repository").pick_folder();
         if selected.is_none() { return Err(Cancelled.into()); }
-        if !selected.as_ref().unwrap().join("workspace/workspace.json").is_file() {
-            rfd::MessageDialog::new().set_title("Choose the Workspace folder").set_description("Select the repository folder containing workspace/workspace.json.").show();
+        if !selected.as_ref().unwrap().join(MARKER).is_file() {
+            rfd::MessageDialog::new().set_title("Choose the Exchange Shell folder").set_description("Select the repository folder containing exchange-shell.json.").show();
         }
     }
 }
@@ -215,13 +218,13 @@ fn make_windows(app: &tauri::AppHandle, workspace: &str, chats: &str) -> Result<
     let workspace_window = window_defaults(WebviewWindowBuilder::new(app, "workspace", WebviewUrl::External(workspace.parse()?)))
         .on_new_window(|url, _| external_links::open_popup(url))
         .disable_drag_drop_handler().visible(false)
-        .title(format!("{} — Workspace", app.config().product_name.as_deref().unwrap_or("Mr. Mak"))).inner_size((width - chat_width - 8.0).max(500.0), (height - 6.0).max(450.0))
+        .title(format!("{} — Workspace", app.config().product_name.as_deref().unwrap_or("Exchange"))).inner_size((width - chat_width - 8.0).max(500.0), (height - 6.0).max(450.0))
         .position(x + chat_width + 6.0, y + 2.0).min_inner_size(500.0, 400.0)
         .build()?;
     let chats_window = window_defaults(WebviewWindowBuilder::new(app, "chats", WebviewUrl::External(chats.parse()?)))
         .on_new_window(|url, _| external_links::open_popup(url))
         .visible(false)
-        .title(format!("{} — Chats", app.config().product_name.as_deref().unwrap_or("Mr. Mak"))).inner_size(chat_width, (height - 6.0).max(450.0))
+        .title(format!("{} — Chats", app.config().product_name.as_deref().unwrap_or("Exchange"))).inner_size(chat_width, (height - 6.0).max(450.0))
         .position(x + 2.0, y + 2.0).min_inner_size(330.0, 420.0)
         .build()?;
     // Native drops expose every original file/folder path. Keep Workspace's
@@ -362,7 +365,7 @@ fn guarded_setup(app: &mut tauri::App, setup: impl FnOnce(&mut tauri::App) -> Re
     if !cfg!(target_os = "macos") { return Err(error); }
     let cancelled = error.downcast_ref::<Cancelled>().is_some();
     if !cancelled {
-        rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Mr. Mak could not start").set_description(error.to_string()).show();
+        rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Exchange could not start").set_description(error.to_string()).show();
     }
     app.handle().exit(if cancelled { 0 } else { 1 });
     Ok(())
@@ -426,7 +429,7 @@ fn main() {
                             let chats = event["chats"].as_str().unwrap_or("").to_owned();
                             let _ = app_handle.run_on_main_thread(move || {
                                 if let Err(error) = make_windows(&handle, &workspace, &chats) {
-                                    rfd::MessageDialog::new().set_title("Mr. Mak could not open").set_description(error.to_string()).show(); handle.exit(1);
+                                    rfd::MessageDialog::new().set_title("Exchange could not open").set_description(error.to_string()).show(); handle.exit(1);
                                 }
                             });
                         },
@@ -478,7 +481,7 @@ fn main() {
                     }
                 }
                 if app_handle.get_webview_window("workspace").is_none() {
-                    rfd::MessageDialog::new().set_title("Mr. Mak service did not start").set_description(format!("The local service stopped before opening the windows. See {} for details.", service_log.display())).show();
+                    rfd::MessageDialog::new().set_title("Exchange service did not start").set_description(format!("The local service stopped before opening the windows. See {} for details.", service_log.display())).show();
                     app_handle.exit(1);
                 }
             });
@@ -487,7 +490,7 @@ fn main() {
             let workspace_item = MenuItem::with_id(app, "workspace", "Show Workspace", true, None::<&str>)?;
             let chats_item = MenuItem::with_id(app, "chats", "Show Chats", true, None::<&str>)?;
             let both_item = MenuItem::with_id(app, "both", "Show both windows", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Mr. Mak and stop terminals", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Exchange and stop terminals", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&workspace_item, &chats_item, &both_item, &separator, &quit_item])?;
             #[cfg(any(windows, target_os = "macos"))]
@@ -497,7 +500,7 @@ fn main() {
                 let shortcut = RecallShortcut::start(app.handle(), enabled);
                 let available = shortcut.is_ok();
                 if let Ok(shortcut) = shortcut { app.manage(shortcut); }
-                let item = CheckMenuItem::with_id(app, "win-key", format!("{RECALL_LABEL} shows Mr. Mak"), available, enabled && available, None::<&str>)?;
+                let item = CheckMenuItem::with_id(app, "win-key", format!("{RECALL_LABEL} shows Exchange"), available, enabled && available, None::<&str>)?;
                 menu.insert(&item, 3)?;
                 app.manage(item);
                 publish_shortcut(app.handle(), None, if available { None } else { Some(format!("The system could not register {RECALL_LABEL}.")) });
@@ -506,7 +509,7 @@ fn main() {
             let tray = TrayIconBuilder::new().icon(menu_bar_icon()?).icon_as_template(true);
             #[cfg(not(target_os = "macos"))]
             let tray = TrayIconBuilder::new().icon(app.default_window_icon().unwrap().clone());
-            tray.tooltip("Mr. Mak — your agents, close at hand")
+            tray.tooltip("Exchange — chats and workspace")
                 .menu(&menu).show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "workspace" => reveal(app, "workspace"), "chats" => reveal(app, "chats"),
@@ -541,7 +544,7 @@ fn main() {
                 if let Some(job) = app.try_state::<ServiceJob>() { job.0.lock().unwrap().take(); }
             }
         }),
-        Err(error) => { rfd::MessageDialog::new().set_title("Mr. Mak could not start").set_description(error.to_string()).show(); }
+        Err(error) => { rfd::MessageDialog::new().set_title("Exchange could not start").set_description(error.to_string()).show(); }
     }
 }
 

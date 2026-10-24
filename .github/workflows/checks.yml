@@ -16,19 +16,16 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npm run test:template
+      - run: npm run test:repo
       - run: npm run build
       # The Tauri build bundles .cache/desktop-runtime, which prepare creates.
       - run: npm run desktop:prepare
       - run: cargo test --manifest-path src-tauri/Cargo.toml
-      - run: npm run test:preview
       - run: node desktop/service/test/theme-ui.mjs
       - run: node desktop/service/test/clipboard-ui.mjs
       - run: powershell -NoProfile -File scripts/test-update-helpers.ps1
       - run: node desktop/service/test/groups-ui.mjs
       - run: node desktop/service/test/conversation-ui.mjs
-      - run: node desktop/service/test/workspace-edit-ui.mjs
-      - run: node desktop/service/test/cards-ui.mjs
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'

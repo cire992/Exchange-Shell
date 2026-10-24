@@ -1,7 +1,6 @@
 import http from 'node:http';
 import path from 'node:path';
 import { stat, realpath } from 'node:fs/promises';
-import { watch } from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Sessions } from './sessions.mjs';
 import { Files, serveFile } from './files.mjs';
@@ -10,8 +9,6 @@ import { inventory } from './agents.mjs';
 import { Attachments, attachmentText, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { ContextLibrary } from './context.mjs';
 import { groupLabel } from './titles.mjs';
-import { Workspace, metadataPatch } from './workspace.mjs';
-import { CardDocuments } from './card-documents.mjs';
 import { NativeSettings } from './native-settings.mjs';
 import { McpInventory } from './mcp.mjs';
 import { body, equalSecret, json, publicError, readJson, realFile, saveJson, secret } from './util.mjs';
@@ -44,12 +41,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const transcripts = new ConversationTranscripts();
   const conversationMedia = new ConversationMedia();
   const settingsPath = path.join(stateDir, 'settings.json');
-  // Settings saved by the removed voice, coordinator and dictation features are dropped on load.
-  const { coordinatorModel, coordinatorEffort, voiceName, voiceStyle, transcribeProvider, ...savedSettings } = await readJson(settingsPath, {}) || {};
+  // Settings saved by removed features (voice, coordinator, dictation, card routes) are dropped on load.
+  const { coordinatorModel, coordinatorEffort, voiceName, voiceStyle, transcribeProvider, workspaceRoute, ...savedSettings } = await readJson(settingsPath, {}) || {};
   let settings = { defaultAgent: 'codex', defaultBypass: false, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', handoffAfter: 40, groupTabsByProject: false, systemEvents: 'compact', ...savedSettings };
   const projectList = () => recentProjects({ repo, sessions: sessions.list(), pinned: settings.pinnedProjects || [] });
   let selectedId = sessions.active().some(item => item.id === settings.selectedId) ? settings.selectedId : sessions.active()[0]?.id || null;
-  let workspaceRoute = settings.workspaceRoute || null;
   let settingsTimer;
   let settingsSave = Promise.resolve();
   const saveSettings = () => { settingsSave = settingsSave.catch(() => {}).then(() => saveJson(settingsPath, settings)); return settingsSave; };
@@ -62,9 +58,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const nativeSettings = new NativeSettings(native, value => broadcast('native-settings', value));
   const show = (window, extra = {}) => { native({ type: 'window', action: 'show', window }); broadcast('navigate', { window, ...extra }); };
   const focus = id => { sessions.get(id); selectedId = id; settings.selectedId = id; scheduleSettings(); show('chats', { sessionId: id }); return { selectedId: id }; };
-  const registry = async () => readJson(path.join(repo, 'workspace', 'workspace.json'), { entities: [] });
-  const workspace = new Workspace(repo, () => broadcast('workspace-changed', {}));
-  const cards = new CardDocuments(workspace);
   const history = query => sessions.list().filter(item => !query || `${item.name} ${item.agent} ${item.cwd} ${item.preview || ''}`.normalize('NFC').toLowerCase().includes(query.normalize('NFC').toLowerCase())).sort((a, b) => Number(b.pinned) - Number(a.pinned) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const closeChat = async id => {
     await sessions.remove(id);
@@ -101,7 +94,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   function authorize(request) {
     if (request.headers.host !== new URL(origin).host) throw Object.assign(new Error('Unexpected host'), { status: 403 });
     if (request.headers.origin && request.headers.origin !== origin) throw Object.assign(new Error('Unexpected origin'), { status: 403 });
-    if (!equalSecret(request.headers.authorization, `Bearer ${token}`)) throw Object.assign(new Error('Open Mr. Mak from its desktop launcher'), { status: 401 });
+    if (!equalSecret(request.headers.authorization, `Bearer ${token}`)) throw Object.assign(new Error('Open Exchange from its desktop launcher'), { status: 401 });
   }
   const server = http.createServer(async (request, response) => {
     try {
@@ -115,8 +108,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
       if (url.pathname.startsWith('/api/')) {
         authorize(request);
         const method = request.method;
-        const cardImage = /^\/api\/workspace\/cards\/([^/]+)\/(\d+)\/images$/.exec(url.pathname);
-        if (method === 'POST' && cardImage) return json(response, 201, await cards.image(decodeURIComponent(cardImage[1]), Number(cardImage[2]), request, url.searchParams.get('name')));
         if (method === 'POST' && url.pathname === '/api/files/import') {
           if (Number(request.headers['content-length']) > MAX_FILE_BYTES) throw Object.assign(new Error('Choose files of 1 GB or less.'), { status: 413 });
           const result = await importFile(request, url.searchParams.get('folder'), url.searchParams.get('name'));
@@ -129,17 +120,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           for await (const chunk of request) { length += chunk.length; if (length > MAX_IMAGE_BYTES) throw Object.assign(new Error('Choose an image smaller than 25 MB.'), { status: 413 }); chunks.push(chunk); }
           return json(response, 201, await attachments.save(Buffer.concat(chunks), decodeURIComponent(request.headers['x-file-name'] || 'Screenshot')));
         }
-        const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? 12 * 1024 * 1024 : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};
+        const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? 12 * 1024 * 1024 : 256 * 1024) : {};
         if (method === 'GET' && url.pathname === '/api/bootstrap') {
           return json(response, 200, { repo, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), settings, selectedId, notices });
         }
-        if (method === 'GET' && url.pathname === '/api/workspace') return json(response, 200, await registry());
-        if (method === 'POST' && url.pathname === '/api/workspace/cards') return json(response, 201, await cards.create(data));
-        const cardDocument = /^\/api\/workspace\/cards\/([^/]+)\/(\d+)$/.exec(url.pathname);
-        if (cardDocument && method === 'GET') return json(response, 200, await cards.read(decodeURIComponent(cardDocument[1]), Number(cardDocument[2])));
-        if (cardDocument && method === 'PUT') return json(response, 200, await cards.save(decodeURIComponent(cardDocument[1]), Number(cardDocument[2]), data));
-        const cardMetadata = url.pathname.match(/^\/api\/workspace\/entities\/([^/]+)$/);
-        if (method === 'PATCH' && cardMetadata) return json(response, 200, await workspace.update(decodeURIComponent(cardMetadata[1]), metadataPatch(data)));
         if (method === 'GET' && url.pathname === '/api/projects') {
           const matches = await projects.detect(url.searchParams.get('path') || repo);
           return json(response, 200, { matches, adapters: projects.adapters.map(item => ({ id: item.id, label: item.label })) });
@@ -325,23 +309,20 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         else if (message.type === 'resize') sessions.resize(message.id, message.cols, message.rows);
         else if (message.type === 'selected') { sessions.get(message.id); selectedId = message.id; settings.selectedId = selectedId; scheduleSettings(); }
         else if (message.type === 'seen' && ws.surface === 'chats' && ws.sessionId === message.id && selectedId === message.id) sessions.seen(message.id, message.completionVersion);
-        else if (message.type === 'workspace-route') { workspaceRoute = String(message.route || '').slice(0, 500); settings.workspaceRoute = workspaceRoute; scheduleSettings(); }
         else if (message.type === 'ping') send(ws, 'pong', {});
       } catch (error) { send(ws, 'service-error', { error: publicError(error) }); }
     });
     ws.on('close', () => { clearTimeout(authTimer); clients.delete(ws); });
     ws.on('error', () => {});
   });
-  let watcher;
-  try { watcher = watch(path.join(repo, 'workspace', 'workspace.json'), () => broadcast('workspace-changed', {})); watcher.on('error', () => {}); } catch { /* Registry may be created after first setup. */ }
   const restoreTimer = restoreSessions ? setTimeout(() => sessions.restore().catch(error => sessions.emit('service-error', error)), 100) : null;
   return {
-    origin, contentOrigin: files.origin, token, sessions, transcripts, workspace, cards, files, projects, knowledge, integrations,
+    origin, contentOrigin: files.origin, token, sessions, transcripts, files, projects, knowledge, integrations,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
       nativeMessage: event => nativeSettings.receive(event),
       async close() {
         if (closing) return; closing = true; mcp.close(); nativeSettings.close(); await files.writes.catch(() => {});
-      watcher?.close(); clearTimeout(restoreTimer); clearTimeout(settingsTimer); await saveSettings(); await workspace.writes;
+      clearTimeout(restoreTimer); clearTimeout(settingsTimer); await saveSettings();
       for (const ws of wss.clients) ws.terminate();
       wss.close(); await sessions.close();
       server.closeAllConnections(); contentServer.closeAllConnections();

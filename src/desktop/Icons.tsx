@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react'
 import type { AgentId } from './types'
-import MakLogo from '../components/MakLogo'
 
 export function AgentLogo({ agent, size = 18 }: { agent: AgentId; size?: number }) {
   if (agent === 'antigravity') return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="agent-logo"><path d="m4 19 8-15 8 15M8 13h8" /><path d="M3 21c5-4 13-4 18 0" opacity=".6" /></svg>
@@ -11,9 +10,6 @@ export function AgentLogo({ agent, size = 18 }: { agent: AgentId; size?: number 
   return <Icon name="terminal" size={size} />
 }
 
-export function Nose({ size = 30, tone = 'pink' }: { size?: number; tone?: 'pink' | 'black' }) {
-  return <MakLogo size={size} tone={tone} />
-}
 export function Icon({ name, size = 18, style }: { name: string; size?: number; style?: CSSProperties }) {
   const paths: Record<string, string> = {
     menu: 'M4 6h16M4 12h16M4 18h16',
