@@ -25,8 +25,8 @@ async function workingFolder(value) {
   return process.platform === 'win32' ? folder : realpath(folder).catch(() => folder);
 }
 const publicSession = session => {
-  const { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, group, updatedAt, preview, hasConversation, restoreError } = session;
-  return { id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, group, updatedAt, preview, hasConversation, restoreError };
+  const { checkpoint = null, id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, group, updatedAt, preview, hasConversation, restoreError } = session;
+  return { checkpoint, id, name, agent, cwd, bypass, effort, status, createdAt, lastOutputAt, lastInputAt, exitCode, nativeId, attention, activity, unread, completionVersion, lastCompletedId, cols, rows, open, pinned, tabOrder, tabColor, group, updatedAt, preview, hasConversation, restoreError };
 };
 
 // Grouped tabs sit together at the position of their earliest open member; a tab
@@ -50,6 +50,19 @@ export class Sessions extends EventEmitter {
     this.saveChain = Promise.resolve();
     this.dirty = false;
     this.closed = false;
+    // Set by the service: commits the chat's project home before a bypassed launch (Exchange, 7c).
+    this.checkpoint = null;
+  }
+
+  // Before every launch of a bypassed chat, unless the user chose to start it without one.
+  async checkpointBefore(session, skip) {
+    if (!session.bypass || !this.checkpoint) return;
+    if (skip) { session.checkpoint = { state: 'skipped', at: new Date().toISOString() }; return; }
+    try { session.checkpoint = await this.checkpoint(session); }
+    catch (error) {
+      session.checkpoint = { state: 'failed', message: error.message, at: new Date().toISOString() };
+      throw error;
+    }
   }
 
   async init() {
@@ -131,7 +144,10 @@ export class Sessions extends EventEmitter {
     await this.hydrate(session);
     // A first message and its readable folder apply to this launch only, never to a resume.
     const first = { initialPrompt: options.initialPrompt, readDir: options.readDir };
-    try { await this.launch(session, options.resumeId, await this.nativeBoundary(session, options.resumeId), first); }
+    try {
+      await this.checkpointBefore(session, options.skipCheckpoint === true);
+      await this.launch(session, options.resumeId, await this.nativeBoundary(session, options.resumeId), first);
+    }
     catch (error) { this.items.delete(session.id); session.terminal.dispose(); throw error; }
     await this.persist();
     return publicSession(session);
@@ -553,7 +569,7 @@ export class Sessions extends EventEmitter {
     setTimeout(() => { try { if (session.process === proc) proc.write('\x03'); } catch { /* Process already exited. */ } }, 500).unref();
     setTimeout(() => { try { if (session.process === proc) proc.kill(); } catch { /* Process already exited. */ } }, 3500).unref();
   }
-  async resume(id, nativeId) {
+  async resume(id, nativeId, { skipCheckpoint = false } = {}) {
     nativeConversationId(nativeId);
     if (this.closed) throw new Error('Exchange is shutting down');
     const session = this.get(id);
@@ -576,6 +592,8 @@ export class Sessions extends EventEmitter {
     session.open = true; session.updatedAt = new Date().toISOString();
     if (session.launching) await session.launching;
     else {
+      try { await this.checkpointBefore(session, skipCheckpoint); }
+      catch (error) { session.restoreError = error.message; session.status = 'stopped'; this.changed(session); await this.persist(); throw error; }
       session.launching = this.launch(session, resumeId, nativeWatch);
       try { await session.launching; } finally { session.launching = null; }
     }

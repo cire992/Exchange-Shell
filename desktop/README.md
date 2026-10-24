@@ -49,6 +49,11 @@ windows reach it through this service:
 them with `npm run exchange:types` after the core's API changes. See `docs/EXCHANGE_PROGRESS.md`
 (6c).
 
+Before a bypassed chat starts or resumes in an Exchange project home (a folder with
+`exchange.project.toml`), `desktop/service/exchange/checkpoint.mjs` has the core commit the home
+(`exchange project checkpoint`). If that fails, the chat does not start; the New chat dialog and the
+Reconnect bar offer to start it without a checkpoint. See `docs/EXCHANGE_PROGRESS.md` (7c).
+
 ## Projects and the Conversation view
 
 New chat lists recent projects from `recent-projects.mjs`: this repository, pinned

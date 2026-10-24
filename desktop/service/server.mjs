@@ -23,11 +23,12 @@ import { rewindToMessage } from './message-edit.mjs';
 import { Handoffs } from './handoff.mjs';
 import { chatCommands } from './chat-commands.mjs';
 import { ExchangeCore } from './exchange/core.mjs';
+import { checkpointCommand as defaultCheckpointCommand, takeCheckpoint } from './exchange/checkpoint.mjs';
 import { existsSync } from 'node:fs';
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
 
-export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, exchange = new ExchangeCore(), startExchange = false }) {
+export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, exchange = new ExchangeCore(), startExchange = false, checkpointCommand = defaultCheckpointCommand }) {
   repo = await realpath(repo);
   stateDir ||= path.join(repo, '.mrmak');
   const files = new Files(repo);
@@ -52,6 +53,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const exchangeImages = `/exchange-images/${secret()}`;
   const configureExchange = () => exchange.configure({ core: settings.exchangeCore, dataDir: settings.exchangeDataDir || null })
     .catch(error => broadcast('service-error', { error: publicError(error) }));
+  // Exchange (7c): each launch of a bypassed chat first commits the project home it runs in.
+  sessions.checkpoint = session => takeCheckpoint({
+    core: settings.exchangeCore, dataDir: settings.exchangeDataDir || null, cwd: session.cwd,
+    reason: `bypassed chat: ${session.agent} "${session.name}"`, command: checkpointCommand });
   const projectList = () => recentProjects({ repo, sessions: sessions.list(), pinned: settings.pinnedProjects || [] });
   let selectedId = sessions.active().some(item => item.id === settings.selectedId) ? settings.selectedId : sessions.active()[0]?.id || null;
   let settingsTimer;
@@ -286,7 +291,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           }
           if (method === 'POST' && action === 'focus') return json(response, 200, focus(id));
           if (method === 'POST' && action === 'stop') return json(response, 200, sessions.stop(id));
-          if (method === 'POST' && action === 'resume') { const session = await sessions.resume(id, data.nativeId); focus(id); return json(response, 200, session); }
+          if (method === 'POST' && action === 'resume') { const session = await sessions.resume(id, data.nativeId, { skipCheckpoint: data.skipCheckpoint === true }); focus(id); return json(response, 200, session); }
           if (method === 'POST' && action === 'attach') return json(response, 200, await attach(id, data.paths));
           if (method === 'POST' && action === 'clear') return json(response, 200, await sessions.clearScreen(id));
           if (method === 'POST' && action === 'reorder') return json(response, 200, await sessions.reorder(id, data.targetId, data.position));
@@ -312,7 +317,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY',
         'Content-Security-Policy': `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: ${files.origin}; media-src 'self' blob: ${files.origin}; connect-src 'self' ws://127.0.0.1:* ${files.origin}; frame-src ${files.origin}; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`,
       });
-    } catch (error) { if (!response.headersSent) json(response, error.status || 400, { error: publicError(error) }); }
+    } catch (error) { if (!response.headersSent) json(response, error.status || 400, { error: publicError(error), ...(error.code === 'checkpoint' ? { code: 'checkpoint' } : {}) }); }
   });
   const origin = await listen(server);
   files.uiOrigin = origin;

@@ -38,7 +38,7 @@ export async function api<T>(path: string, data?: unknown, method?: string, opti
     body: data === undefined ? undefined : JSON.stringify(data),
   })
   const value = await response.json()
-  if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`)
+  if (!response.ok) throw Object.assign(new Error(value.error || `Request failed (${response.status})`), { code: value.code })
   return value as T
 }
 export function pickFiles(): Promise<string[]> {

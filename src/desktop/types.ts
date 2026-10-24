@@ -9,7 +9,10 @@ export interface ChatSession {
   activity: 'idle' | 'working' | 'waiting'; unread: boolean; completionVersion: number
   tabOrder: number; tabColor: string | null; group: string | null
   open: boolean; pinned: boolean; updatedAt: string; preview?: string; hasConversation?: boolean; restoreError?: string | null
+  /** The last launch's checkpoint of its Exchange project home, for bypassed chats (7c). */
+  checkpoint?: Checkpoint | null
 }
+export interface Checkpoint { state: 'none' | 'committed' | 'clean' | 'skipped' | 'failed'; project?: string; commit?: string | null; message?: string; at?: string }
 export interface RecentProject { path: string; name: string; sources: ('workspace' | 'mrmak' | 'claude' | 'codex')[]; pinned: boolean; lastUsedAt: string | null }
 export interface Handoff { status: 'summarizing' | 'opening' | 'done' | 'failed'; error?: string | null; sessionId?: string | null; file?: string | null; at: string }
 export interface Notice { id: string; sessionId: string; name: string; kind: string; text: string; at: string }
