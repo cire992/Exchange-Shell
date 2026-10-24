@@ -38,7 +38,7 @@ try {
   const page = await context.newPage(); page.setDefaultTimeout(10000);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace);
-  await page.getByRole('heading', { name: 'Mission control is not wired up yet' }).waitFor();
+  await page.getByRole('heading', { name: 'The library is not connected' }).waitFor();
   await page.getByRole('button', { name: 'Toggle files', exact: true }).click();
   await page.getByRole('treeitem', { name: /^knowledge$/ }).click();
   await page.getByRole('treeitem', { name: /^notes.md/ }).click();
