@@ -1,6 +1,14 @@
 # Exchange Shell: progress and handoff
 
-Last updated 2026-10-24, during phase 6. Phase 5 is merged (#1, #4, #5, #6); 6c is in review.
+## Game data model (2026-10-24)
+
+Records (compiled game data, with maturity) are now separate from claims (work, with status).
+See the Exchange repository's docs/OVERVIEW.md for how the parts connect, docs/IDENTITY.md (v2) for
+the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phase 7 builds the
+first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
+fast capture. Those docs live in the Exchange repository only.
+
+Last updated 2026-10-24, during phase 7. Phase 5 and 6c are merged; 7c is in review.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -10,7 +18,9 @@ is kept out of Git because this repository is public.
 
 Read this first, then these files in the Exchange repository:
 
+- `docs/OVERVIEW.md`: how the parts connect.
 - `docs/IDENTITY.md`: what Exchange is for.
+- `docs/GAME_DATA_MODEL.md`: records and claims. Where it and the spec disagree, it wins.
 - `docs/DESIGN_SPEC.md`: how it works, and the source of truth. Use its terms
   exactly. For this repository the relevant sections are *Workspace and agents*,
   *User interface* and *Architecture* (including *The fork*).
@@ -27,6 +37,10 @@ Workspace" (goal G4), is in progress** across both repositories; its plan and
 decisions are in the core's `docs/PROGRESS.md` (*Phase 6*). This repository does
 6c, 6d, 6f, 6h and 6i, and half of 6j.
 
+**Phase 7, part 1, "Project homes" (goal G5), is in progress**, planned in the core's
+`docs/PROGRESS.md` (*Phase 7*). Its only chunk here is 7c: the git checkpoint before bypassed
+chats. The Workspace views for records wait for the rest of phase 6.
+
 Phase 5 was done when the fork ran with tabs for Claude Code, Codex, Kimi and
 PowerShell, history restore, and the per-session bypass checkbox with a badge on
 the tab. Its plan was approved on 2026-10-24 with every recommended answer;
@@ -38,9 +52,10 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 5b (#4) | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | merged |
 | 5c (#5) | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | merged |
 | 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | merged |
-| 6c | The shell starts the Exchange core's service and proxies it; its status and settings in the Workspace | in review |
+| 6c (#7) | The shell starts the Exchange core's service and proxies it; its status and settings in the Workspace | merged |
+| 7c | A git checkpoint of the project home before every launch of a bypassed chat | in review |
 
-The PRs are stacked: each is based on the previous one.
+Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
 
 **What upstream already provides** (checked 2026-10-24): Kimi sessions
 (`--session` resume, `--yolo` bypass), history restore for Claude Code, Codex
@@ -292,6 +307,56 @@ Needs the core's 6b (`exchange serve`, cire992/3dExchange#18).
     yet …".
 - **For the user's own core:** after 6b merges, run
   `.venv\Scripts\python -m pip install -e ".[service]"` in the core folder once.
+
+### 7c: the checkpoint before bypassed chats
+
+Needs the core's 7a (`exchange project checkpoint`, cire992/3dExchange#21).
+
+- **When:** before every launch of a bypassed chat, new or resumed (restored at startup, reopened
+  from History, Reconnect), whose working folder is inside an Exchange project home: a folder
+  with `exchange.project.toml`, found by walking up. Other chats never call the core.
+- **How:** `desktop/service/exchange/checkpoint.mjs` runs the core's
+  `<core>\.venv\Scripts\python.exe -m exchange project checkpoint --for <folder> --reason
+  'bypassed chat: <agent> "<name>"' --json`. It uses the same core folder and data folder as
+  the service (the data folder's `projects.toml` holds the git identity for project homes). The
+  core commits every change except `.exchange/`, and never makes an empty commit.
+- **Wiring:**
+  - `Sessions.checkpoint` is the hook the service sets.
+  - `create()` and `resume()` call it before `launch()`.
+  - Each chat keeps the last result as `checkpoint`: `committed`, `clean`, `skipped`, `failed` or
+    `none`, with the project, commit and time.
+- **If it fails** (no core folder, no `.venv`, a core older than 7a, git refusing), the chat does not
+  start.
+  - **New chat:** the service answers 409 with `code: "checkpoint"`, and the dialog shows the reason
+    and **Start without checkpoint**.
+  - **A resume:** the tab stays open with the reason in the Reconnect bar, and **Reconnect without
+    checkpoint**.
+  - Starting without one is recorded as `skipped` for that launch only.
+- **Tooltips:** a bypassed tab's tooltip names its checkpoint ("Checkpoint 4a10f80 of NJO before
+  this launch").
+- **Upstream files touched:**
+  - `sessions.mjs` (the hook)
+  - `server.mjs` (the hook, the resume flag, and the error code)
+  - `client.ts` (errors carry `code`)
+  - `types.ts`
+  - `Chats.tsx` (the two buttons)
+  - `ChatTabs.tsx` (the tooltip line)
+
+  The rest is in `desktop/service/exchange/` and `src/exchange/checkpoint.ts`.
+- **Tests:**
+  - `desktop/service/exchange/test/checkpoint.test.mjs` (6), with a fake core in
+    `fake-checkpoint.mjs`
+  - `checkpoint-ui.mjs` in the real Chats window (a failed restore and Reconnect without checkpoint,
+    New chat refused then Start without checkpoint, a committed checkpoint in the tooltip)
+- **With the real core** (the 7b worktree, a scratch project home made by `exchange project init`,
+  the scratch data folder; terminals stubbed):
+  - a bypassed chat committed the home's new record in 0.9 s
+  - a second one found nothing to commit (0.6 s)
+  - a chat that was not bypassed, and one outside the home, did not call the core
+  - the user's core checkout (before 7a) gets "the Exchange core … is older than Roadmap phase 7a;
+    update it".
+- **For the user's own project homes:** once 7a is merged and pulled, set the git identity once:
+  `exchange project config --git-name … --git-email …` (this machine has no global git identity).
 
 ## Known gaps and next candidates
 
