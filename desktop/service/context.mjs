@@ -12,14 +12,6 @@ export class ContextLibrary {
     this.repo = repo;
     this.skillRoots = [path.join(repo, '.agents', 'skills'), path.join(repo, '.claude', 'skills'), path.join(os.homedir(), '.agents', 'skills'), path.join(os.homedir(), '.codex', 'skills'), path.join(os.homedir(), '.codex', 'plugins', 'cache')];
   }
-  async orientation() {
-    const names = ['AGENTS.md', 'context/me.md', 'context/identity.md', 'context/goals.md', 'context/preferences.md', 'desktop/coordinator.md'];
-    const parts = await Promise.all(names.map(async name => {
-      const text = await readFile(path.join(this.repo, name), 'utf8').catch(() => '');
-      return text ? `## ${name}\n${text.slice(0, 14000)}` : '';
-    }));
-    return parts.filter(Boolean).join('\n\n').slice(0, 38000);
-  }
   async skills(query = '') {
     const rg = commandPath('rg');
     if (!rg) return { skills: [], note: 'The rg file search tool is unavailable. Workers can still use their own skills.' };

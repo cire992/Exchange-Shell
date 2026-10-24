@@ -23,13 +23,10 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run test:preview
       - run: node desktop/service/test/theme-ui.mjs
-      - run: node desktop/service/test/voice-ui.mjs
       - run: node desktop/service/test/clipboard-ui.mjs
-      - run: node desktop/service/test/desktop-dictation-ui.mjs
       - run: powershell -NoProfile -File scripts/test-update-helpers.ps1
       - run: node desktop/service/test/groups-ui.mjs
       - run: node desktop/service/test/conversation-ui.mjs
-      - run: node desktop/service/test/mobile-ui.mjs
       - run: node desktop/service/test/workspace-edit-ui.mjs
       - run: node desktop/service/test/cards-ui.mjs
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -38,4 +35,3 @@ jobs:
       - run: python -m unittest discover -s .agents/skills/fal-ai-generation/scripts -p test_fal_job.py -v
       - run: python -m unittest forge.tests.test_optional_vision_tooling -v
         working-directory: .agents/skills/img2threejs
-      - run: python scripts/test-local-voice-setup.py

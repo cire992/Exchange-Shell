@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdir, open, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { mkdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { within } from './util.mjs';
 
@@ -26,35 +26,6 @@ export class Attachments {
     const file = path.join(actual, `${basename}-${date.slice(11, 19).replaceAll(':', '')}-${randomUUID().slice(0, 8)}${extension}`);
     await writeFile(file, data, { flag: 'wx' });
     return { path: file, name: path.basename(file), size: data.length };
-  }
-  async copyImage(file) {
-    const actual = await realpath(path.resolve(file));
-    const info = await stat(actual);
-    if (!info.isFile() || info.size > MAX_IMAGE_BYTES) throw new Error('Choose an image file smaller than 25 MB.');
-    return this.save(await readFile(actual), path.basename(actual));
-  }
-  async coordinatorImages(files = []) {
-    if (!Array.isArray(files) || files.length > 12) throw new Error('Attach up to 12 images per message.');
-    if (!files.length) return [];
-    const repo = await realpath(this.repo);
-    const root = await realpath(path.join(repo, 'inbox', 'attachments'));
-    if (!within(repo, root)) throw new Error('The attachments folder must stay inside MR-MAK.');
-    const result = [];
-    for (const file of files) {
-      if (typeof file !== 'string' || !path.isAbsolute(file) || /[\x00-\x1f\x7f]/.test(file)) throw new Error('Choose an image uploaded through Mr. Mak.');
-      const actual = await realpath(file);
-      if (!within(root, actual)) throw new Error('Choose an image uploaded through Mr. Mak.');
-      const handle = await open(actual, 'r');
-      try {
-        const info = await handle.stat();
-        if (!info.isFile() || !info.size || info.size > MAX_IMAGE_BYTES) throw new Error('Choose an image file smaller than 25 MB.');
-        const header = Buffer.alloc(12);
-        await handle.read(header, 0, header.length, 0);
-        imageExtension(header);
-      } finally { await handle.close(); }
-      if (!result.includes(actual)) result.push(actual);
-    }
-    return result;
   }
   async paths(files) {
     if (!Array.isArray(files) || !files.length || files.length > 100) throw new Error('Choose between 1 and 100 files or folders.');

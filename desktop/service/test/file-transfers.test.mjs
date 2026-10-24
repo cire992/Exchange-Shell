@@ -72,17 +72,10 @@ test('file import and native drag use authenticated control and a selected folde
   } finally { await service.close(); }
 });
 
-test('coordinator refuses unnamed or generic chats before launching a terminal', async () => {
-  const repo = await fixture();
-  const service = await createService({ repo, uiDir: path.join(repo, 'ui') });
-  try {
-    for (const name of ['', 'Conversation 1', 'New chat', 'Session #3', 'Codex', '123', 'Настройки голоса']) {
-      await assert.rejects(service.coordinator.execute('open_chat', { agent: 'codex', name }));
-    }
-    assert.equal(service.sessions.list().length, 0);
-    assert.equal(taskTitle('  Dream Game   Combat  '), 'Dream Game Combat');
-    assert.equal(taskTitle('Voice Settings'), 'Voice Settings');
-  } finally { await service.close(); }
+test('task titles are trimmed and generic titles are refused', () => {
+  for (const name of ['', 'Conversation 1', 'New chat', 'Session #3', 'Codex', '123', 'Настройки голоса']) assert.throws(() => taskTitle(name));
+  assert.equal(taskTitle('  Dream Game   Combat  '), 'Dream Game Combat');
+  assert.equal(taskTitle('Voice Settings'), 'Voice Settings');
 });
 
 test('internal drops move files, same-folder drops do nothing, collisions retain both originals', async () => {

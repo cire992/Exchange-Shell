@@ -1,18 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { api, pickFiles, reportError, speakDesktopText, transcribeDesktopAudio, uploadImage } from './client'
+import { api, pickFiles, reportError, uploadImage } from './client'
 import type { ChatSession, SystemEventsMode } from './types'
 import SystemEvent, { type SystemEventData } from '../mobile/SystemEvent'
 import BackgroundWork, { type BackgroundCommand, type WorkingAgent } from '../mobile/BackgroundWork'
 import { AgentLogo, Icon } from './Icons'
-import { useDictation } from './useDictation'
 import ConversationImages from '../mobile/ConversationImages'
 import type { ConversationImage } from '../mobile/ImageViewer'
-import VoiceInput from '../mobile/VoiceInput'
 import { visibleUserMessage } from '../mobile/workspace-context'
-import { spokenText, useReadAloud } from '../mobile/useReadAloud'
-import { readingVoiceChanged, readingVoices, saveReadingVoice, savedReadingVoice } from '../mobile/readingVoices'
 import { commandToken, completeCommand, matchingCommands, terminalCommand, type ChatCommand } from './commandSuggestions'
 import './conversation.css'
 
@@ -71,13 +67,10 @@ export default function Conversation({ session, connected, agentLabel, openTermi
   const scroller = useRef<HTMLDivElement>(null), area = useRef<HTMLDivElement>(null), input = useRef<HTMLTextAreaElement>(null)
   const follow = useRef(true), [showJump, setShowJump] = useState(false)
   const [draft, setDraft] = useState(() => savedDraft(session.id))
-  const [sending, setSending] = useState(false), [uploading, setUploading] = useState(false), [voiceBusy, setVoiceBusy] = useState(false), [status, setStatus] = useState('')
+  const [sending, setSending] = useState(false), [uploading, setUploading] = useState(false), [status, setStatus] = useState('')
   const [dragging, setDragging] = useState(false)
-  const { info: dictation } = useDictation()
   const running = session.status === 'running', working = running && session.activity === 'working'
   const reload = useRef<() => Promise<void>>(async () => {})
-  const speech = useReadAloud(session.id, speakDesktopText), stopReading = speech.stop
-  const [voice, setVoice] = useState(savedReadingVoice)
   const [answering, setAnswering] = useState(false)
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null), [rewinding, setRewinding] = useState(false), [editError, setEditError] = useState('')
   const [commands, setCommands] = useState<ChatCommand[]>([]), [caret, setCaret] = useState(0), [picked, setPicked] = useState(0), [dismissed, setDismissed] = useState('')
@@ -116,17 +109,8 @@ export default function Conversation({ session, connected, agentLabel, openTermi
     return () => { stopped = true; clearInterval(timer); document.removeEventListener('visibilitychange', visible) }
   }, [session.id, session.completionVersion, session.activity])
   const messages = transcript?.messages || []
-  let readStart = 0
-  for (let index = 0; index < messages.length; index++) if (messages[index].role === 'user') readStart = index
-  const latestUserId = messages[readStart]?.role === 'user' ? messages[readStart].id : null
-  useEffect(() => () => stopReading(), [latestUserId, session.id, stopReading])
   // A message rewound from the terminal no longer has an open editor.
   const openEdit = editing && (rewinding || messages.some(message => message.id === editing.id)) ? editing : null
-  function readAloud(id: string) {
-    if (speech.activeId) { speech.togglePause(); return }
-    const parts = Array.from(scroller.current?.querySelectorAll<HTMLElement>('.conversation-message.assistant') || []).filter(node => Number(node.dataset.index) > readStart)
-    speech.read(id, parts.map(node => spokenText(node.querySelector<HTMLElement>('.conversation-copy-text'))).filter(Boolean).join('\n\n'))
-  }
   async function answer(prompt: TerminalPrompt, choice: number | 'cancel') {
     if (answering) return
     setAnswering(true)
@@ -181,7 +165,7 @@ export default function Conversation({ session, connected, agentLabel, openTermi
 
   async function send() {
     const text = draft.text.trimEnd()
-    if (sending || uploading || voiceBusy || !connected || !running || (!text.trim() && !draft.paths.length)) return
+    if (sending || uploading || !connected || !running || (!text.trim() && !draft.paths.length)) return
     setSending(true); setStatus('')
     try {
       await api(`/sessions/${session.id}/send`, { text, paths: draft.paths })
@@ -238,13 +222,6 @@ export default function Conversation({ session, connected, agentLabel, openTermi
           </form>
           : message.text.trim() && <div className="conversation-copy-text"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={keepUrl} components={{ img: () => null, a: ({ href, children }) => <MessageLink href={href} sessionId={session.id}>{children}</MessageLink> }}>{message.role === 'user' ? visibleUserMessage(message.text) : message.text}</ReactMarkdown></div>}
           <ConversationImages images={message.images} />
-          {index === messages.length - 1 && message.role === 'assistant' && index > readStart && <div className="conversation-read-aloud">
-            <button type="button" onClick={() => readAloud(message.id)} aria-label={speech.activeId ? speech.paused ? 'Resume reading' : 'Pause reading' : 'Read aloud'} title={speech.activeId ? speech.paused ? 'Resume reading' : 'Pause reading' : 'Read this reply aloud'}><Icon name={speech.activeId ? speech.paused ? 'play' : 'pause' : 'speaker'} size={15} />{speech.activeId ? speech.paused ? 'Resume' : 'Pause' : 'Read aloud'}</button>
-            {speech.activeId && <button type="button" onClick={speech.stop} aria-label="Stop reading" title="Stop reading"><Icon name="stop" size={13} /></button>}
-            <select aria-label="Reading voice" value={voice} onChange={event => { setVoice(event.target.value); saveReadingVoice(event.target.value); window.dispatchEvent(new Event(readingVoiceChanged)) }}>{readingVoices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
-            {speech.loading && <span role="status">Preparing audio…</span>}
-            {speech.error && <span role="alert">{speech.error}</span>}
-          </div>}
         </article>)}
         {!messages.length && <div className="conversation-empty">
           <AgentLogo agent={session.agent} size={34} />
@@ -288,10 +265,9 @@ export default function Conversation({ session, connected, agentLabel, openTermi
         onPaste={event => { const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/')); if (files.length) { event.preventDefault(); void addImages(files) } }} />
       <div className="conversation-actions">
         <button type="button" className="desk-icon" title="Attach files or folders" aria-label="Attach files" onClick={() => window.dispatchEvent(new Event('mrmak-attach-file'))}><Icon name="attach" size={16} /></button>
-        <div className="terminal-dictation"><VoiceInput id={`desktop-conversation-${session.id}`} connected={connected} disabled={sending} config={dictation} transcriber={transcribeDesktopAudio} onBusy={setVoiceBusy} onText={text => setDraft(current => ({ ...current, text: current.text ? `${current.text}${/\s$/.test(current.text) ? '' : '\n'}${text}` : text }))} /></div>
         <span className="conversation-status" role="status">{status || (uploading ? 'Saving images…' : 'Enter to send · Shift+Enter for a new line')}</span>
         {working && <button type="button" className="conversation-stop" onClick={stop} title="Interrupt the agent (Esc)"><Icon name="stop" size={14} />Stop</button>}
-        <button type="submit" className="conversation-send" aria-label={sending ? 'Sending…' : 'Send'} title="Send" disabled={!connected || !running || sending || uploading || voiceBusy || (!draft.text.trim() && !draft.paths.length)}><Icon name="send" size={16} /></button>
+        <button type="submit" className="conversation-send" aria-label={sending ? 'Sending…' : 'Send'} title="Send" disabled={!connected || !running || sending || uploading || (!draft.text.trim() && !draft.paths.length)}><Icon name="send" size={16} /></button>
       </div>
     </form>
   </div>

@@ -7,7 +7,7 @@ desktop app. Sign in to at least one of those CLIs first.
 Read `docs/skills.md` for the complete index. The six new game workflows cover
 VFX, UI, animation integration, levels, audio and native visual review. Existing
 skills cover planning, handoffs, image/3D production, Blender animation, video
-inspection, Workspace reports and local dictation setup.
+inspection and Workspace reports.
 
 ## Add selected skills to a project
 
@@ -37,7 +37,6 @@ Example request:
 | img2threejs | Copy its entire folder, including code, resources and Apache-2.0 licence. Optional upstream integrations remain separate. |
 | workspace-authoring | `processes/workspace-authoring.md`, `docs/editable-cards.md`, its images under `docs/assets/`, `desktop/service/card-schema.mjs`, and `workspace/_shared/{report.css,report.js,examples.css}`. Merge these with your own styles if needed. The desktop card editor/app is separate. |
 | video-watch | `knowledge/video-watch.md`, `scripts/video-watch/` and the shared report assets. Install the optional Python requirements in a local virtual environment. |
-| voice-dictation-setup | `knowledge/voice-dictation.md`. The dictation application and its model are separate installations. |
 | Production routing | Choose and copy the relevant sibling skills from the index; a route name does not install that workflow. |
 
 No generation is required to install the pack. Tools, accounts, API access,

@@ -22,8 +22,6 @@ brings back the windows from any app, and clicking the Dock icon also restores
 them. The template leaves it disabled.
 
 Choose chat permission bypass deliberately. Ordinary permissions are the default.
-Voice settings can adjust the voice profile, speed and conversation behavior.
-Some voice changes take effect on the next voice connection.
 
 ## Change with an agent
 

@@ -44,3 +44,6 @@ Thumbs.db
 
 # Exchange: machine-specific paths stay local (this repository is public).
 docs/USEFUL_PATHS.md
+
+# Exchange: local launchers.
+/Start Codex.cmd

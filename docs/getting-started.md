@@ -6,8 +6,7 @@ keep using the same agents outside the app.
 
 **Required before setup: Codex CLI, Claude Code CLI or OpenCode, installed and
 configured with your own account.** Use at least one to guide the setup below.
-The optional voice coordinator requires Codex specifically; Kimi is another
-available terminal integration.
+Kimi is another available terminal integration.
 
 ## Choose a folder
 
@@ -90,24 +89,6 @@ Use Files to inspect `projects`, `inbox`, `knowledge`, `processes` and the skill
 folders. A Markdown file opens in Preview; switch to Edit and Save to change it.
 The Help button opens a quick guide without creating a new chat.
 
-## Optional voice
-
-Copy `.env.example` to `.env` and add your own `OPENAI_API_KEY` to enable the
-OpenAI Live connection. Never commit that file. Sign in to Codex for the
-coordinator. Its model follows your account configuration; an optional
-`MRMAK_COORDINATOR_MODEL` overrides it. Model access depends on your account.
-
-Voice requests can focus a chat, inspect a report, update a card or hand a larger
-task to a worker. Direct actions stay quick; a visible worker handles deliverables.
-Task-specific voice requests can use medium, high or xhigh effort. A direct
-request to open a new chat uses the same `xhigh` default as the **+** button.
-Max requires an explicit request. The app reports tool results before calling
-an action complete.
-
-CLI account billing and OpenAI voice API billing are separate. No API generation
-is needed to browse the samples or use a signed-in CLI. Optional dictation into
-terminals is described in [voice dictation](../knowledge/voice-dictation.md).
-
 ## macOS
 
 On an Apple Silicon Mac, download the macOS `.dmg` from
@@ -150,11 +131,8 @@ Differences from Windows:
   Win-key equivalent). Clicking the Dock icon also restores closed windows.
 - Both windows share one Dock icon; the menu-bar icon offers Show Workspace,
   Show Chats and Quit.
-- The first voice recording asks for microphone access.
 - In terminals, Option types your keyboard layout's characters (such as @ or
   #); Settings > Chats > **Use Option as Meta key** turns Option into a Meta key.
-- Optional local dictation and Read aloud need Python 3.12 called as
-  `python3.12`; see [local voice setup](mobile-access.md#local-voice-setup-on-the-computer).
 - `./scripts/check-macos-native.sh` checks the native parts (menus, shortcuts,
   Dock reopen, ⌃⌥⌘Space) through Accessibility; it needs the screen for ~30 s.
 

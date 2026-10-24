@@ -16,8 +16,7 @@ SKILLS = (
     'game-audio-workflow', 'game-level-design', 'game-ui-workflow',
     'game-vfx-workflow', 'gameplay-visual-review', 'higgsfield-workflow',
     'image-reference-workflow', 'img2threejs', 'materials-to-game',
-    'motion-reference-workflow', 'plan', 'video-watch', 'voice-dictation-setup',
-    'workspace-authoring',
+    'motion-reference-workflow', 'plan', 'video-watch', 'workspace-authoring',
 )
 SUPPORT = (
     'docs/skills.md', 'processes/creative-production.md',
@@ -26,7 +25,7 @@ SUPPORT = (
     'docs/assets/editable-cards-gallery.png',
     'docs/assets/editable-cards-research.png',
     'processes/workspace-authoring.md', 'knowledge/video-watch.md',
-    'knowledge/voice-dictation.md', 'scripts/video-watch/extract.py',
+    'scripts/video-watch/extract.py',
     'scripts/video-watch/requirements.txt', 'workspace/_shared/report.css',
     'workspace/_shared/report.js', 'workspace/_shared/examples.css', 'LICENSE',
 )

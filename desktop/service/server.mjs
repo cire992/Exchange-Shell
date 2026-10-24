@@ -1,45 +1,36 @@
 import http from 'node:http';
 import path from 'node:path';
-import { readFile, stat, realpath } from 'node:fs/promises';
+import { stat, realpath } from 'node:fs/promises';
 import { watch } from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
-import { parse as parseEnv } from 'dotenv';
 import { Sessions } from './sessions.mjs';
-import { Coordinator, openChatArguments } from './coordinator.mjs';
 import { Files, serveFile } from './files.mjs';
 import { importFile, dragFiles, moveFile, recyclePath, MAX_FILE_BYTES } from './file-transfers.mjs';
 import { inventory } from './agents.mjs';
 import { Attachments, attachmentText, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { ContextLibrary } from './context.mjs';
-import { groupLabel, taskTitle } from './titles.mjs';
-import { taskEffort } from './effort.mjs';
-import { Workspace, localDay, metadataPatch } from './workspace.mjs';
+import { groupLabel } from './titles.mjs';
+import { Workspace, metadataPatch } from './workspace.mjs';
 import { CardDocuments } from './card-documents.mjs';
-import { QuickActions } from './quick-actions.mjs';
-import { defaultVoiceStyle, voiceSession } from './voice-profile.mjs';
 import { NativeSettings } from './native-settings.mjs';
 import { McpInventory } from './mcp.mjs';
 import { body, equalSecret, json, publicError, readJson, realFile, saveJson, secret } from './util.mjs';
 import { ProjectAdapterRegistry } from './project-adapters/registry.mjs';
 import { KnowledgeManager, MarkdownKnowledgeProvider } from './knowledge/providers.mjs';
 import { IntegrationManager } from './integrations/manager.mjs';
-import { MobileDictation } from './mobile-dictation.mjs';
-import { MobileGateway } from './mobile.mjs';
 import { ConversationTranscripts } from './mobile-transcript.mjs';
 import { ConversationMedia } from './conversation-media.mjs';
 import { projectKey, recentProjects } from './recent-projects.mjs';
 import { answerPrompt, readPrompt } from './terminal-prompt.mjs';
 import { rewindToMessage } from './message-edit.mjs';
-import { LocalReadAloud } from './local-read-aloud.mjs';
 import { Handoffs } from './handoff.mjs';
 import { chatCommands } from './chat-commands.mjs';
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
 
-export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions, mobileOptions }) {
+export async function createService({ repo, uiDir, stateDir, token = secret(), native = () => {}, restoreSessions = false, mcpOptions }) {
   repo = await realpath(repo);
   stateDir ||= path.join(repo, '.mrmak');
-  const dictation = mobileOptions?.dictation || new MobileDictation(repo);
   const files = new Files(repo);
   const attachments = new Attachments(repo);
   const library = new ContextLibrary(repo);
@@ -52,21 +43,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const sessions = await new Sessions(repo, stateDir).init();
   const transcripts = new ConversationTranscripts();
   const conversationMedia = new ConversationMedia();
-  const readAloud = mobileOptions?.readAloud || new LocalReadAloud(repo);
-  const environment = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
   const settingsPath = path.join(stateDir, 'settings.json');
-  const savedSettings = await readJson(settingsPath, null);
-  let settings = { defaultAgent: 'codex', defaultBypass: false, coordinatorModel: environment.MRMAK_COORDINATOR_MODEL?.trim() || null, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', coordinatorEffort: 'medium', voiceName: 'cedar', voiceStyle: defaultVoiceStyle, handoffAfter: 40, groupTabsByProject: false, systemEvents: 'compact', ...savedSettings };
-  if (await dictation.initializeProvider?.(settings, savedSettings !== null)) await saveJson(settingsPath, settings);
-  dictation.providerChoice = () => settings.transcribeProvider || null;
-  const chooseDictation = async provider => {
-    if (!['local', 'openai', 'openrouter', 'off'].includes(provider)) throw Object.assign(new Error('Choose a supported speech-to-text provider.'), { status: 400 });
-    settings.transcribeProvider = provider; await saveSettings();
-    const info = await dictation.status();
-    broadcast('settings', { settings }); broadcast('dictation', { dictation: info });
-    mobile?.broadcast({ type: 'dictation', dictation: info });
-    return info;
-  };
+  // Settings saved by the removed voice, coordinator and dictation features are dropped on load.
+  const { coordinatorModel, coordinatorEffort, voiceName, voiceStyle, transcribeProvider, ...savedSettings } = await readJson(settingsPath, {}) || {};
+  let settings = { defaultAgent: 'codex', defaultBypass: false, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', handoffAfter: 40, groupTabsByProject: false, systemEvents: 'compact', ...savedSettings };
   const projectList = () => recentProjects({ repo, sessions: sessions.list(), pinned: settings.pinnedProjects || [] });
   let selectedId = sessions.active().some(item => item.id === settings.selectedId) ? settings.selectedId : sessions.active()[0]?.id || null;
   let workspaceRoute = settings.workspaceRoute || null;
@@ -74,13 +54,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   let settingsSave = Promise.resolve();
   const saveSettings = () => { settingsSave = settingsSave.catch(() => {}).then(() => saveJson(settingsPath, settings)); return settingsSave; };
   const scheduleSettings = () => { clearTimeout(settingsTimer); settingsTimer = setTimeout(() => saveSettings().catch(() => {}), 500); };
-  const transcriptPath = path.join(stateDir, 'voice-transcripts.json');
-  let voiceHistory = await readJson(transcriptPath, []);
-  let transcriptSave = Promise.resolve();
-  let voiceOwner = null;
   let closing = false;
   const clients = new Set();
-  let mobile;
   const notices = [];
   const send = (ws, type, value) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type, ...value })); };
   const broadcast = (type, value) => { for (const ws of clients) send(ws, type, value); };
@@ -97,73 +72,12 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
     return { closed: true, savedInHistory: true };
   };
   const handoffs = new Handoffs({ repo, sessions, transcripts, opened: id => focus(id), changed: (id, handoff) => broadcast('handoff', { id, handoff }) });
-  const attach = async (id, paths, coordinator = false) => {
+  const attach = async (id, paths) => {
     const session = sessions.get(id);
     const verified = await attachments.paths(paths);
-    sessions.input(id, attachmentText(verified, session.agent), { coordinator, submit: false });
+    sessions.input(id, attachmentText(verified, session.agent), { submit: false });
     return { attached: verified, submitted: false };
   };
-  const coordinator = await new Coordinator({
-    repo, stateDir, orientation: () => library.orientation(), settings: () => settings,
-    context: () => ({ repo, localDate: localDay(), selectedId, workspaceRoute, chats: sessions.active(), recentNotices: notices.slice(-5), recentRequests: [...coordinator.operations.values(), ...quick.operations.values()].sort((a, b) => a.at.localeCompare(b.at)).slice(-6).map(({ text, result, status }) => ({ text, result, status })) }),
-    execute: async (name, args, operationId, requestText) => {
-      const latestRequest = requestText || coordinator.operations.get(operationId)?.text || '';
-      switch (name) {
-        case 'list_chats': return sessions.active();
-        case 'search_history': return history(args.query || '').slice(0, 70);
-        case 'list_projects': { const query = String(args.query || '').toLowerCase(); return (await projectList()).filter(item => `${item.name} ${item.path}`.toLowerCase().includes(query)).slice(0, 40); }
-        case 'reopen_chat': { const session = await sessions.resume(args.id); focus(session.id); return session; }
-        case 'close_chat': return closeChat(args.id);
-        case 'pin_chat': return sessions.pin(args.id, args.pinned);
-        case 'open_chat': {
-          args = openChatArguments(args);
-          if (args.bypass === true && settings.defaultBypass !== true) throw new Error('To enable bypass, choose it yourself in New chat or Settings. Mr. Mak cannot raise the selected permission level.');
-          const session = await sessions.create({ agent: args.agent, cwd: args.cwd, name: taskTitle(args.name), effort: taskEffort(latestRequest, args.effort), bypass: args.bypass === false ? false : settings.defaultBypass === true });
-          focus(session.id); return session;
-        }
-        case 'read_chat': return sessions.read(args.id);
-        case 'send_to_chat': return sessions.input(args.id, args.text, { coordinator: true, submit: true });
-        case 'attach_files': return attach(args.id, args.paths, true);
-        case 'focus_chat': return focus(args.id);
-        case 'rename_chat': return sessions.rename(args.id, args.name);
-        case 'interrupt_chat': sessions.input(args.id, '\x03'); return { delivered: 'Ctrl+C', sessionId: args.id };
-        case 'list_workspace': return workspace.list(args);
-        case 'read_workspace': return workspace.read(args.entityId, args.step);
-        case 'workspace_activity': return workspace.activity(args.date);
-        case 'update_workspace': return workspace.update(args.entityId, args);
-        case 'show_workspace': {
-          if (args.entityId && !(await registry()).entities.some(item => item.id === args.entityId)) throw new Error('Workspace report does not exist');
-          workspaceRoute = args.entityId ? `#/${encodeURIComponent(args.entityId)}${Number.isInteger(args.step) ? '/' + args.step : ''}` : null;
-          settings.workspaceRoute = workspaceRoute; scheduleSettings();
-          show('workspace', { route: workspaceRoute }); return { shown: true, route: workspaceRoute };
-        }
-        case 'preview_file': { const preview = await files.preview(args.path); show('workspace', { preview }); return { shown: preview.path }; }
-        case 'list_files': return files.list(args.path || repo, 'all', args.query || '');
-        case 'search_context': return knowledge.searchText(args.query);
-        case 'read_context': return knowledge.read(args.path, args.offset);
-        case 'list_skills': return knowledge.skills(args.query || '');
-        case 'list_mcp': return mcp.list();
-        case 'get_app_settings': return { voice: settings.voiceName, style: settings.voiceStyle, model: coordinator.model || 'Codex default', effort: settings.coordinatorEffort, billing: 'Codex subscription for the coordinator; OpenAI API for voice' };
-        case 'update_voice': {
-          if (typeof args.style === 'string' && args.style.trim()) settings.voiceStyle = args.style.trim().slice(0, 1800);
-          if (['cedar', 'marin'].includes(args.voice)) settings.voiceName = args.voice;
-          await saveSettings(); broadcast('settings', { settings });
-          return { saved: true, voice: settings.voiceName, style: settings.voiceStyle, applies: 'Next voice connection. Reconnect to apply the saved voice and personality.' };
-        }
-        default: throw new Error('Unknown coordinator tool');
-      }
-    },
-  }).init();
-  const quick = await new QuickActions({ stateDir, workspace, context: () => ({ chats: sessions.active(), route: workspaceRoute }), execute: (...args) => coordinator.execute(...args), completed: operation => broadcast('coordinator-result', { operation }) }).init();
-  const askMak = async data => {
-    if (coordinator.operationPromises.has(data.id) || coordinator.operations.has(data.id)) return coordinator.ask(data);
-    const images = await attachments.coordinatorImages(data.images);
-    if (images.length) return coordinator.ask({ ...data, images });
-    return await quick.ask(data) || coordinator.ask({ ...data, images });
-  };
-  coordinator.on('state', state => broadcast('coordinator-state', { state }));
-  coordinator.on('result', operation => broadcast('coordinator-result', { operation }));
-  coordinator.on('error-detail', error => broadcast('service-error', { error }));
   sessions.on('session', session => { broadcast('session', { session }); integrations.publish('session', { event: session.status, session }).catch(() => {}); });
   sessions.on('screen-cleared', ({ id }) => broadcast('screen-cleared', { id }));
   sessions.on('service-error', error => broadcast('service-error', { error: publicError(error) }));
@@ -215,20 +129,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           for await (const chunk of request) { length += chunk.length; if (length > MAX_IMAGE_BYTES) throw Object.assign(new Error('Choose an image smaller than 25 MB.'), { status: 413 }); chunks.push(chunk); }
           return json(response, 201, await attachments.save(Buffer.concat(chunks), decodeURIComponent(request.headers['x-file-name'] || 'Screenshot')));
         }
-        if (method === 'GET' && url.pathname === '/api/dictation') return json(response, 200, await dictation.status());
-        if (method === 'POST' && url.pathname === '/api/transcribe') return json(response, 200, await dictation.transcribe(request, 'desktop', () => !closing));
         const data = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await body(request, url.pathname === '/api/files/markdown' ? 12 * 1024 * 1024 : url.pathname.startsWith('/api/workspace/cards') ? 2 * 1024 * 1024 : 256 * 1024) : {};
-        if (method === 'POST' && url.pathname === '/api/dictation') return json(response, 200, await chooseDictation(data.provider));
-        if (method === 'GET' && url.pathname === '/api/mobile') return json(response, 200, mobile.status());
-        if (method === 'GET' && url.pathname === '/api/mobile/check') return json(response, 200, await mobile.transport.probe());
-        if (method === 'POST' && url.pathname === '/api/mobile/enable') return json(response, 200, await mobile.enable());
-        if (method === 'POST' && url.pathname === '/api/mobile/disable') return json(response, 200, await mobile.disable());
-        if (method === 'POST' && url.pathname === '/api/mobile/pair') return json(response, 200, await mobile.newPairing());
-        if (method === 'POST' && url.pathname === '/api/mobile/approve') return json(response, 200, await mobile.approve(data.id));
-        if (method === 'POST' && url.pathname === '/api/mobile/revoke') return json(response, 200, await mobile.revoke(data.id));
         if (method === 'GET' && url.pathname === '/api/bootstrap') {
-          const keys = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
-          return json(response, 200, { repo, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), settings, selectedId, notices, coordinator: coordinator.state, voice: { configured: !!(keys.OPENAI_API_KEY || keys.OPENAI_KEY || process.env.OPENAI_API_KEY), owner: voiceOwner }, voiceHistory, operations: [...coordinator.operations.values(), ...quick.operations.values()].sort((a, b) => a.at.localeCompare(b.at)).slice(-30) });
+          return json(response, 200, { repo, contentBase: `${files.origin}/view/${files.repoGrant}`, agents: inventory(), sessions: sessions.list(), settings, selectedId, notices });
         }
         if (method === 'GET' && url.pathname === '/api/workspace') return json(response, 200, await registry());
         if (method === 'POST' && url.pathname === '/api/workspace/cards') return json(response, 201, await cards.create(data));
@@ -264,7 +167,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           await saveSettings(); broadcast('settings', { settings });
           return json(response, 200, await projectList());
         }
-        if (method === 'GET' && url.pathname === '/api/read-aloud') return json(response, 200, await readAloud.status());
         if (method === 'POST' && url.pathname === '/api/preview/show') {
           // A link in a chat may be relative to that chat's working folder.
           const base = typeof data.sessionId === 'string' ? sessions.get(data.sessionId).cwd : repo;
@@ -311,8 +213,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (Number.isInteger(data.handoffAfter) && (data.handoffAfter === 0 || (data.handoffAfter >= 10 && data.handoffAfter <= 500))) settings.handoffAfter = data.handoffAfter;
           if (['full', 'compact', 'hidden'].includes(data.systemEvents)) settings.systemEvents = data.systemEvents;
           if (['dark', 'light', 'system'].includes(data.workspaceTheme)) settings.workspaceTheme = data.workspaceTheme;
-          if (['medium', 'high'].includes(data.coordinatorEffort)) settings.coordinatorEffort = data.coordinatorEffort;
-          if (['cedar', 'marin'].includes(data.voiceName)) settings.voiceName = data.voiceName;
           if (data.groupColors && typeof data.groupColors === 'object' && !Array.isArray(data.groupColors)) settings.groupColors = Object.fromEntries(Object.entries(data.groupColors).filter(([name, value]) => name.length <= 60 && typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)).slice(0, 200).map(([name, value]) => [name, value.toLowerCase()]));
           if (Array.isArray(data.collapsedGroups)) settings.collapsedGroups = [...new Set(data.collapsedGroups.filter(item => typeof item === 'string' && item.length <= 60))].slice(0, 200);
           await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
@@ -361,14 +261,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (method === 'POST' && action === 'handoff') return json(response, 200, handoffs.start(id));
           if (method === 'POST' && action === 'prompt') return json(response, 200, await answerPrompt(sessions, id, data.id, data.choice));
           if (method === 'POST' && action === 'rewind') return json(response, 200, await rewindToMessage(sessions, transcripts, id, String(data.messageId || '')));
-          if (method === 'POST' && action === 'speak') {
-            const controller = new AbortController(), abort = () => controller.abort();
-            sessions.get(id); response.once('close', abort);
-            try {
-              const audio = await readAloud.synthesize('desktop', data, controller.signal);
-              response.writeHead(200, { 'Content-Type': 'audio/wav', 'Content-Length': audio.length, 'Cache-Control': 'no-store' }); response.end(audio); return;
-            } finally { response.off('close', abort); }
-          }
           if (method === 'POST' && action === 'send') {
             // One prompt: the text and any attached paths are pasted together, then submitted.
             const session = sessions.get(id), text = typeof data.text === 'string' ? data.text : '';
@@ -394,39 +286,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           const file = await realpath(path.resolve(data.path));
           native({ type: 'reveal', path: file }); return json(response, 200, { requested: true });
         }
-        if (method === 'POST' && url.pathname === '/api/coordinator') return json(response, 200, await askMak(data));
-        if (method === 'POST' && url.pathname === '/api/coordinator/prepare') { await coordinator.start(); return json(response, 200, { ready: true, model: coordinator.model }); }
-        if (method === 'POST' && url.pathname === '/api/live/transcript') {
-          if (typeof data.id !== 'string' || data.id.length > 200 || !Array.isArray(data.captions)) throw new Error('A voice session and captions are required.');
-          const captions = data.captions.slice(-50).filter(item => ['user', 'assistant'].includes(item.role) && typeof item.text === 'string').map(item => ({ role: item.role, text: item.text.slice(0, 1000), start: Number(item.start) || 0, end: Number(item.end) || 0 }));
-          const transcript = { id: data.id, at: new Date().toISOString(), captions };
-          voiceHistory = [...voiceHistory.filter(item => item.id !== data.id), transcript].slice(-12);
-          const snapshot = voiceHistory;
-          transcriptSave = transcriptSave.catch(() => {}).then(() => saveJson(transcriptPath, snapshot)); await transcriptSave;
-          return json(response, 200, { saved: true });
-        }
-        if (method === 'POST' && url.pathname === '/api/live/release') {
-          if (voiceOwner?.clientId === data.clientId) { voiceOwner = null; broadcast('voice-owner', { owner: null }); }
-          return json(response, 200, { released: true });
-        }
-        if (method === 'POST' && url.pathname === '/api/live/session') {
-          if (voiceOwner && voiceOwner.clientId !== data.clientId) throw new Error(`Voice is already active in the ${voiceOwner.surface} window`);
-          if (typeof data.sdp !== 'string' || !data.sdp.trim() || typeof data.clientId !== 'string') throw new Error('A microphone connection is required');
-          const keys = parseEnv(await readFile(path.join(repo, '.env'), 'utf8').catch(() => ''));
-          const key = keys.OPENAI_API_KEY || keys.OPENAI_KEY || process.env.OPENAI_API_KEY;
-          if (!key) throw new Error('Add OPENAI_API_KEY to the repository .env, then press the nose again.');
-          voiceOwner = { clientId: data.clientId, surface: data.surface === 'chats' ? 'chats' : 'workspace' };
-          broadcast('voice-owner', { owner: voiceOwner });
-          try {
-            const result = await fetch('https://api.openai.com/v1/live/sessions', {
-              method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30000),
-                body: JSON.stringify({ session: voiceSession(settings), transport: { type: 'webrtc', sdp: data.sdp } }),
-            });
-            const value = await result.json().catch(() => ({}));
-            if (!result.ok) throw new Error(`OpenAI Live (${result.status}): ${value.error?.message || 'Session could not be started'}`);
-            return json(response, 201, value);
-          } catch (error) { voiceOwner = null; broadcast('voice-owner', { owner: null }); throw error; }
-        }
         throw Object.assign(new Error('Endpoint not found'), { status: 404 });
       }
       if (!['GET', 'HEAD'].includes(request.method)) throw Object.assign(new Error('Not allowed'), { status: 405 });
@@ -441,7 +300,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   });
   const origin = await listen(server);
   files.uiOrigin = origin;
-  mobile = await new MobileGateway({ ...mobileOptions, transcripts, readAloud, dictation, chooseDictation, repo, uiDir, stateDir, sessions, attachments, closeChat, settings: () => settings, changed: state => broadcast('mobile-state', { mobile: state }) }).init();
   const wss = new WebSocketServer({ noServer: true, maxPayload: 128 * 1024 });
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, origin);
@@ -457,7 +315,7 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (!ws.authenticated) {
           if (message.type !== 'auth' || !equalSecret(message.token, token)) return ws.close(1008, 'Authentication failed');
           ws.authenticated = true; ws.clientId = message.clientId; ws.surface = message.surface; clients.add(ws); clearTimeout(authTimer);
-          send(ws, 'connected', { sessions: sessions.list(), selectedId, coordinator: coordinator.state }); return;
+          send(ws, 'connected', { sessions: sessions.list(), selectedId }); return;
         }
         if (message.type === 'subscribe') {
           ws.sessionId = message.id;
@@ -471,20 +329,19 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         else if (message.type === 'ping') send(ws, 'pong', {});
       } catch (error) { send(ws, 'service-error', { error: publicError(error) }); }
     });
-    ws.on('close', () => { clearTimeout(authTimer); clients.delete(ws); if (voiceOwner?.clientId === ws.clientId) { voiceOwner = null; broadcast('voice-owner', { owner: null }); } });
+    ws.on('close', () => { clearTimeout(authTimer); clients.delete(ws); });
     ws.on('error', () => {});
   });
   let watcher;
   try { watcher = watch(path.join(repo, 'workspace', 'workspace.json'), () => broadcast('workspace-changed', {})); watcher.on('error', () => {}); } catch { /* Registry may be created after first setup. */ }
   const restoreTimer = restoreSessions ? setTimeout(() => sessions.restore().catch(error => sessions.emit('service-error', error)), 100) : null;
   return {
-    origin, contentOrigin: files.origin, token, sessions, coordinator, quick, workspace, cards, files, projects, knowledge, integrations, mobile,
+    origin, contentOrigin: files.origin, token, sessions, transcripts, workspace, cards, files, projects, knowledge, integrations,
     urls: { workspace: `${origin}/?desktop=1&surface=workspace&token=${token}`, chats: `${origin}/?desktop=1&surface=chats&token=${token}` },
       nativeMessage: event => nativeSettings.receive(event),
       async close() {
         if (closing) return; closing = true; mcp.close(); nativeSettings.close(); await files.writes.catch(() => {});
-      watcher?.close(); clearTimeout(restoreTimer); coordinator.close(); clearTimeout(settingsTimer); await saveSettings(); await transcriptSave; await quick.saves; await workspace.writes;
-      dictation.close(); await mobile.close();
+      watcher?.close(); clearTimeout(restoreTimer); clearTimeout(settingsTimer); await saveSettings(); await workspace.writes;
       for (const ws of wss.clients) ws.terminate();
       wss.close(); await sessions.close();
       server.closeAllConnections(); contentServer.closeAllConnections();

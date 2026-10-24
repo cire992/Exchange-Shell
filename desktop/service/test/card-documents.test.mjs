@@ -5,7 +5,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { createService } from '../server.mjs';
 import { validateCard, validateCardDraft, cardSourceUrl, CARD_MAX_ITEMS } from '../card-schema.mjs';
-import { MobileReports } from '../mobile-reports.mjs';
 import { saveJson } from '../util.mjs';
 
 const sample = () => ({ format: 'mrmak-card', version: 1, template: 'gallery', title: 'Reference gallery', summary: 'A **shared** source of content.', items: [{ id: 'first', title: 'First concept', body: 'Review the shape.', status: 'review', prompt: 'A round character.' }] });
@@ -117,18 +116,6 @@ test('card edits and uploads reject folders linked outside the Workspace', async
   await symlink(outside, path.join(repo, 'workspace/sample/media'), process.platform === 'win32' ? 'junction' : 'dir');
   const result = await fetch(`${service.origin}/api/workspace/cards/sample/0/images?name=image.png`, { method: 'POST', headers: { Authorization: `Bearer ${service.token}`, Origin: service.origin }, body: image });
   assert.equal(result.status, 403); assert.deepEqual(await readdir(outside), ['content.card.json']);
-});
-
-test('phone previews receive validated content and a scoped image grant', async t => {
-  const { repo } = await fixture(t);
-  const device = { id: 'paired', expires: Date.now() + 60000 };
-  const gateway = { repo, state: { devices: [device] } };
-  const reports = new MobileReports(gateway);
-  const preview = await reports.open(device, { entityId: 'sample', step: 0 });
-  assert.equal(preview.kind, 'card'); assert.deepEqual(preview.document, sample());
-  assert.equal(preview.statePersistence, false); assert.match(preview.url, /^\/mobile\/view\/[^/]+\/workspace\/sample\/content.card.json$/);
-  await writeFile(path.join(repo, 'workspace/sample/content.card.json'), JSON.stringify({ ...sample(), version: 99 }));
-  await assert.rejects(reports.open(device, { entityId: 'sample' }), /version is not supported/);
 });
 
 test('atomic saves run the revision guard inside the write queue and retain a newer file', async t => {

@@ -64,7 +64,6 @@
 .conversation-composer textarea::placeholder{color:#737581}
 .conversation-actions{display:flex;align-items:center;gap:4px;margin-top:2px}
 .conversation-status{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#6e7180;padding-left:4px}
-.conversation-composer .terminal-dictation .mobile-voice-panel,.conversation-composer .terminal-dictation .mobile-voice-error{top:auto;bottom:36px;left:0;right:auto}
 .conversation-send{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:9px;background:#e8a4b5;color:#1a1218}
 .conversation-send:disabled{background:#ffffff14;color:#8f8a9b}
 .conversation-stop{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid #ffffff18;border-radius:8px;background:transparent;color:#e3c99c;font-size:11px}
@@ -75,11 +74,6 @@
 .chat-view-toggle{display:flex;padding:2px;border:1px solid #ffffff10;border-radius:7px;background:#ffffff04}
 .chat-view-toggle button{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:#7d7f8d;font-size:10px}
 .chat-view-toggle button[aria-pressed=true]{background:#e8a4b517;color:#ecc9da}
-.conversation-read-aloud{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px;font-size:10px;color:#8f8a9b}
-.conversation-read-aloud button{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border:1px solid #ffffff12;border-radius:7px;background:transparent;color:#b6aabe;font-size:10px}
-.conversation-read-aloud button:hover{background:#ffffff08}
-.conversation-read-aloud select{height:26px;padding:0 6px;border:1px solid #ffffff12;border-radius:7px;background:#14151b;color:#b6aabe;font:inherit;font-size:10px}
-.conversation-read-aloud [role=alert]{color:#e3c99c}
 .conversation-link-text{text-decoration:underline dotted;text-underline-offset:3px}
 .conversation-prompt{margin:0 0 18px;padding:12px 14px;border:1px solid #6a5236;border-radius:11px;background:#1f1a15}
 .conversation-prompt>header{display:flex;align-items:center;gap:8px;color:#f0d7a9;font-size:12.5px}

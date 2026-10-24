@@ -93,11 +93,4 @@ html[data-workspace-theme=light] .desk-icon{color:var(--text-dim)!important}
 html[data-workspace-theme=light] .desk-icon:hover{color:var(--pink)!important;background:var(--pink-dim)}
 html[data-workspace-theme=light] .desktop-root input{border-color:var(--hairline-strong)}
 
-html[data-workspace-theme=light] .voice-panel{background:#fff;border-color:var(--hairline-strong);box-shadow:var(--shadow-2);color:var(--text)}
-html[data-workspace-theme=light] :is(.voice-panel h2,.voice-welcome p,.caption,.activity-item strong){color:var(--text)}
-html[data-workspace-theme=light] :is(.voice-welcome>span,.caption.user,.caption>span,.activity-item small,.activity-item time,.voice-settings,.voice-tabs>button,.voice-working,.previous-voice){color:var(--text-dim)}
-html[data-workspace-theme=light] :is(.voice-settings select,.voice-compose button){background:#f5f6f9;color:var(--pink);border-color:var(--hairline-strong)}
-html[data-workspace-theme=light] :is(.voice-panel header,.voice-settings,.voice-compose,.voice-tabs,.mak-exchange,.activity-item){border-color:var(--hairline)}
-html[data-workspace-theme=light] .voice-tabs>button.selected{color:var(--pink);border-color:var(--pink)}
-html[data-workspace-theme=light] .voice-caption-toggle{color:var(--pink)!important;background:#fff;border-color:var(--hairline-strong)}
 html[data-workspace-theme=light] .desktop-error{background:#fff1f2;color:#8b283d;border-color:#d09aa5}
