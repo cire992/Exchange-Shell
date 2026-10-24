@@ -1,6 +1,6 @@
 # Exchange Shell: progress and handoff
 
-Last updated 2026-10-24, during phase 5d. 5a (#1), 5b (#4) and 5c (#5) are merged.
+Last updated 2026-10-24, during phase 6. Phase 5 is merged (#1, #4, #5, #6); 6c is in review.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -21,19 +21,24 @@ Then this repository's [AGENTS.md](../AGENTS.md) (working rules) and
 
 ## Where we are
 
-**Roadmap phase 5, "Chats online" (goal G3), is in progress.** The plan was
-approved on 2026-10-24 with every recommended answer, and question 8 was
-answered "keep the upstream behavior" (see Decisions).
+**Roadmap phase 5, "Chats online" (goal G3), is merged**, except one open
+check: Kimi's History restore (see Known gaps). **Phase 6, "Service and
+Workspace" (goal G4), is in progress** across both repositories; its plan and
+decisions are in the core's `docs/PROGRESS.md` (*Phase 6*). This repository does
+6c, 6d, 6f, 6h and 6i, and half of 6j.
 
-Done when the fork runs with tabs for Claude Code, Codex, Kimi and PowerShell,
-history restore, and the per-session bypass checkbox with a badge on the tab.
+Phase 5 was done when the fork ran with tabs for Claude Code, Codex, Kimi and
+PowerShell, history restore, and the per-session bypass checkbox with a badge on
+the tab. Its plan was approved on 2026-10-24 with every recommended answer;
+question 8 was answered "keep the upstream behavior" (see Decisions).
 
 | PR | What | State |
 | --- | --- | --- |
 | 5a (#1) | Foundation: upstream history and remote, this doc, Windows-only CI, the unmodified app built and run on the dev machine | merged |
 | 5b (#4) | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | merged |
 | 5c (#5) | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | merged |
-| 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | in review |
+| 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | merged |
+| 6c | The shell starts the Exchange core's service and proxies it; its status and settings in the Workspace | in review |
 
 The PRs are stacked: each is based on the previous one.
 
@@ -241,6 +246,52 @@ actions in 5b.)
 | Codex 0.164.0 | own prompts | "YOLO mode" | same native ID; remembered its first reply |
 | Kimi Code 2.3.1 | own prompts | "Never Ask" | not verifiable: the subscription has no Kimi Code access (403) |
 | PowerShell 5.1 | runs commands | (no bypass) | reopens as a fresh shell in the same folder |
+
+### 6c: the Exchange core's service in the shell
+
+Needs the core's 6b (`exchange serve`, cire992/3dExchange#18).
+
+- **Starting the core:** `desktop/service/exchange/core.mjs` (`ExchangeCore`) starts
+  `<core>\.venv\Scripts\python.exe -m exchange serve --exit-with-stdin` with a per-launch
+  token in `EXCHANGE_SERVICE_TOKEN`, and `EXCHANGE_DATA_DIR` when a data folder is set.
+  - It waits up to 60 s for the core's ready line and refuses an API version other than 1.
+  - Closing the shell closes the core's stdin, so it exits cleanly.
+  - A crash while running restarts it once; a failed start waits for Retry.
+  - The windows see the status (`off`, `starting`, `ready`, `error`, `stopped`), the message, the
+    version and the folders, never the core's URL or token.
+- **Settings:** `exchangeCore` (default: `..\3dExchange` beside this repository, when it exists)
+  and `exchangeDataDir` (optional; the core's default is `%LOCALAPPDATA%\Exchange`). Settings ›
+  Exchange core edits them; saving restarts the service. Only `main.mjs` starts the core
+  (`startExchange`), so tests never run Python by accident.
+- **Proxy:**
+  - `/api/exchange/<route>` is the core's `/api/v1/<route>`. It is behind this service's own token,
+    the core's token is added, and the answer is streamed. It is GET only until the write API (6e).
+  - `/api/exchange/status` and `POST /api/exchange/restart` are the shell's own.
+  - Thumbnails for `<img>` are at `/exchange-images/<per-launch grant>/<uid>` (in bootstrap as
+    `exchangeImages`), because an image request cannot carry the token.
+- **Types:** `npm run exchange:types [path/to/openapi.json]` generates `src/exchange/api.gen.ts` from
+  the core's committed schema (default: `..\3dExchange\docs\api\openapi.json`). It was generated
+  from 6b's schema. `src/exchange/api.ts` (`exchangeGet`, `thumbnailUrl`) is the typed client.
+  - **Deviation from decision 8 (approved for phase 6):** the plan named `openapi-typescript`, but it
+    requires TypeScript 5 and this repository uses 6. The generator is a small dependency-free
+    script in `scripts/exchange/`, covering what the core's FastAPI models produce; anything else
+    fails loudly.
+- **Workspace:** `ServiceStatus` in the placeholder shows the connection and a first look at the
+  library through the proxy (assets, environments), with Retry after an error or stop.
+- **Tests:**
+  - `desktop/service/exchange/test/core.test.mjs`, with a fake core in `fake-core.mjs`: start,
+    proxy, token and grant, a settings change, a clean exit with the shell, a crash and its restart,
+    an API mismatch, missing folders and `.venv`, and a stop then Retry
+  - `workspace-ui.mjs`, in the real UI
+- **With the real core:**
+  - The 6b worktree (`Desktop\3dExchange-phase6`) with the scratch scan of the real Daz library
+    connected in 1.4 s and showed 235,043 assets. A proxied search took 424 ms, about the core's own
+    time.
+  - On a small library a real 36 KB thumbnail came through the grant path.
+  - The user's core checkout (`main`, before 6b) gets "This Exchange core has no "exchange serve"
+    yet …".
+- **For the user's own core:** after 6b merges, run
+  `.venv\Scripts\python -m pip install -e ".[service]"` in the core folder once.
 
 ## Known gaps and next candidates
 

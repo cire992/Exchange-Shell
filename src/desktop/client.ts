@@ -16,6 +16,7 @@ const events = new Set<(event: ServiceEvent) => void>()
 let state: DesktopState = {
   ready: false, connected: false, error: null, repo: '', contentBase: '', agents: [], sessions: [], selectedId: null, notices: [],
   settings: { defaultAgent: 'codex' }, preview: null,
+  exchange: { status: 'off', message: '', version: null, api: null, core: null, dataDir: null }, exchangeImages: '',
 }
 let socket: WebSocket | null = null
 let started = false
@@ -114,6 +115,7 @@ function connect() {
     }
     if (event.type === 'service-error') reportError(event.error || 'Connection error')
     if (event.type === 'settings' && event.settings) update({ settings: event.settings })
+    if (event.type === 'exchange' && event.exchange) update({ exchange: event.exchange })
     if (event.type === 'notice' && event.notice) update({ notices: [...state.notices, event.notice].slice(-100) })
     if (event.type === 'navigate') {
       if (event.sessionId) selectChat(event.sessionId)

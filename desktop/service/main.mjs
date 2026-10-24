@@ -11,7 +11,7 @@ const repo = path.resolve(option('--repo') || process.env.MRMAK_REPO || path.joi
 const uiDir = path.resolve(option('--ui') || path.join(directory, '../../dist'));
 const stateDir = path.resolve(option('--state') || path.join(repo, '.mrmak'));
 const writeNative = value => process.stdout.write(JSON.stringify(value) + '\n');
-const service = await createService({ repo, uiDir, stateDir, native: writeNative, restoreSessions: true });
+const service = await createService({ repo, uiDir, stateDir, native: writeNative, restoreSessions: true, startExchange: true });
 // Diagnostics are readable project state. Window credentials travel only over
 // the private startup pipe to the desktop shell, never through this file.
 await saveJson(path.join(stateDir, 'runtime.json'), { pid: process.pid, origin: service.origin });

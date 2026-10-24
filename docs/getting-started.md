@@ -54,6 +54,21 @@ Update waits for you to quit Exchange from its tray menu, installs the build
 silently and opens this repository again. It never terminates your chats itself;
 finish active work before quitting.
 
+## The Exchange core
+
+The Workspace window reads the library through the Exchange core's local service. The core is the
+`exchange` Python package in its own repository. By default the shell looks for it beside this
+one (`..\3dExchange`); Settings › Exchange core sets another folder, and optionally the data
+folder holding the library database. In the core folder, once:
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -e ".[service]"
+```
+
+The Workspace shows whether the service is connected, and Retry after a problem. Chats work without
+it.
+
 ## Your first chat
 
 In Chats, press **+**, choose an agent and a working folder, and give the chat a

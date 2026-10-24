@@ -13,8 +13,10 @@ export interface ChatSession {
 export interface RecentProject { path: string; name: string; sources: ('workspace' | 'mrmak' | 'claude' | 'codex')[]; pinned: boolean; lastUsedAt: string | null }
 export interface Handoff { status: 'summarizing' | 'opening' | 'done' | 'failed'; error?: string | null; sessionId?: string | null; file?: string | null; at: string }
 export interface Notice { id: string; sessionId: string; name: string; kind: string; text: string; at: string }
-export interface Settings { defaultAgent: AgentId; terminalFontSize?: number; terminalAppearance?: 'focus' | 'original'; workspaceTheme?: 'dark' | 'light' | 'system'; selectedId?: string | null; handoffAfter?: number; terminalOptionMeta?: boolean; collapsedGroups?: string[]; groupColors?: Record<string, string>; systemEvents?: SystemEventsMode }
+export interface Settings { defaultAgent: AgentId; exchangeCore?: string | null; exchangeDataDir?: string | null; terminalFontSize?: number; terminalAppearance?: 'focus' | 'original'; workspaceTheme?: 'dark' | 'light' | 'system'; selectedId?: string | null; handoffAfter?: number; terminalOptionMeta?: boolean; collapsedGroups?: string[]; groupColors?: Record<string, string>; systemEvents?: SystemEventsMode }
 export type SystemEventsMode = 'full' | 'compact' | 'hidden'
+/** The Exchange core's local service, as this shell runs it (never its URL or token). */
+export interface ExchangeStatus { status: 'off' | 'starting' | 'ready' | 'error' | 'stopped'; message: string; version: string | null; api: number | null; core: string | null; dataDir: string | null }
 export interface FileEntry { name: string; path: string; directory: boolean; size: number; modifiedAt: string | null }
 export interface Folder { path: string; parent: string; entries: FileEntry[]; truncated: boolean; mode: string }
 export interface Preview { path: string; name: string; size: number; kind: 'document' | 'image' | 'video' | 'audio' | 'text' | 'unsupported'; url?: string; text?: string; revision?: string; reason?: string }
@@ -22,9 +24,10 @@ export interface DesktopState {
   ready: boolean; connected: boolean; error: string | null; repo: string; contentBase: string
   agents: AgentInfo[]; sessions: ChatSession[]; selectedId: string | null; notices: Notice[]
   settings: Settings; preview: Preview | null
+  exchange: ExchangeStatus; exchangeImages: string
 }
 export interface ServiceEvent {
   type: string; id?: string; data?: string; sequence?: number; session?: ChatSession; sessions?: ChatSession[]
   selectedId?: string; sessionId?: string; state?: string; error?: string; notice?: Notice
-  settings?: Settings; window?: string; route?: string; preview?: Preview; handoff?: Handoff
+  settings?: Settings; exchange?: ExchangeStatus; window?: string; route?: string; preview?: Preview; handoff?: Handoff
 }
