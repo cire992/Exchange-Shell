@@ -4,6 +4,7 @@ import { api, reportError } from './client'
 import { chatActivityLabel } from './chatActivity'
 import { Icon } from './Icons'
 import SessionLogo from './SessionLogo'
+import BypassBadge, { bypassTitle } from '../exchange/BypassBadge'
 import { groupedChats, tabColors, type TabGroup } from './chatOrder'
 
 /** A drag carries one tab, or a whole group when it starts on the group's chip. */
@@ -113,8 +114,8 @@ export default function ChatTabs({ items, selectedId, agents, groups, collapsed,
     {editing?.id === item.id ? <span className="chat-tab-select chat-tab-editing"><span style={{ color: agents.find(a => a.id === item.agent)?.color }}><SessionLogo session={item} /></span><input autoFocus value={editing.name} maxLength={100} aria-label="English chat name" onFocus={event => event.currentTarget.select()} onChange={event => setEditing({ id: item.id, name: event.target.value })} onBlur={() => { if (cancelEdit.current) { cancelEdit.current = false; setEditing(null) } else saveName() }}
       onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); else if (event.key === 'Escape') { event.stopPropagation(); cancelEdit.current = true; event.currentTarget.blur() } }} /></span>
     : <button role="tab" aria-selected={selectedId === item.id} onClick={event => { if (!suppressClick.current || event.detail === 0) choose(item.id) }} onDoubleClick={() => setEditing({ id: item.id, name: item.name })} onKeyDown={event => { if (event.key === 'F2') { event.preventDefault(); setEditing({ id: item.id, name: item.name }) } }} onPointerDown={event => begin(event, item)} onPointerMove={move} onPointerUp={finish} onPointerCancel={clear} onLostPointerCapture={clear}
-      className="chat-tab-select" aria-label={`${item.name} · ${chatActivityLabel(item)}`} title={`${agents.find(a => a.id === item.agent)?.label} · ${item.name}${item.group ? ` · ${item.group}` : ''}\n${chatActivityLabel(item)}\nDrag to reorder ${item.pinned ? 'pinned' : 'unpinned'} tabs · right-click for options\n${item.cwd}`}>
-      <span style={{ color: agents.find(a => a.id === item.agent)?.color }}><SessionLogo session={item} /></span><span className="chat-tab-name">{item.name}</span>{item.pinned && <span className="tab-pinned" title="Pinned in History"><Icon name="pin" size={11} /></span>}
+      className="chat-tab-select" aria-label={`${item.name}${item.bypass ? ' · permission prompts bypassed' : ''} · ${chatActivityLabel(item)}`} title={`${agents.find(a => a.id === item.agent)?.label} · ${item.name}${item.group ? ` · ${item.group}` : ''}\n${chatActivityLabel(item)}${item.bypass ? `\n${bypassTitle}` : ''}\nDrag to reorder ${item.pinned ? 'pinned' : 'unpinned'} tabs · right-click for options\n${item.cwd}`}>
+      <span style={{ color: agents.find(a => a.id === item.agent)?.color }}><SessionLogo session={item} /></span><span className="chat-tab-name">{item.name}</span>{item.bypass && <BypassBadge />}{item.pinned && <span className="tab-pinned" title="Pinned in History"><Icon name="pin" size={11} /></span>}
     </button>}
     <button className="chat-tab-close" onClick={() => close(item.id)} aria-label={`Close ${item.name}`} title="Close tab · keep in History"><Icon name="close" size={12} /></button>
   </div>
@@ -130,14 +131,14 @@ export default function ChatTabs({ items, selectedId, agents, groups, collapsed,
       const moving = draggedGroup?.name === group.name && draggedGroup.pinned === group.pinned
       const beside = target && 'beside' in target && target.beside === group.name && target.pinned === group.pinned ? `drop-${target.position}` : ''
       return <div key={run > 1 ? `${key}:${run}` : key} data-chat-group={group.name} className={`chat-tab-group ${folded ? 'collapsed' : ''} ${group.working ? 'working' : ''} ${moving ? 'dragging' : ''} ${beside} ${target && 'group' in target && target.group === group.name ? 'drop-into' : ''}`} style={{ '--tab-accent': group.color } as React.CSSProperties}>
-        <button type="button" className="chat-group-chip" aria-expanded={!folded} aria-label={`${group.name} group · ${group.items.length} tabs${group.unread ? ' · unread result' : ''}`} title={`${group.name} · ${group.items.length} tabs\nClick to ${folded ? 'expand' : 'collapse'} · drag to move the group · right-click to rename, color and more · drop a tab here to add it`}
+        <button type="button" className="chat-group-chip" aria-expanded={!folded} aria-label={`${group.name} group · ${group.items.length} tabs${group.items.some(item => item.bypass) ? ' · includes bypassed chats' : ''}${group.unread ? ' · unread result' : ''}`} title={`${group.name} · ${group.items.length} tabs\nClick to ${folded ? 'expand' : 'collapse'} · drag to move the group · right-click to rename, color and more · drop a tab here to add it`}
           onClick={event => { if (!suppressClick.current || event.detail === 0) toggleGroup(group.name!) }} onPointerDown={event => begin(event, group.items[0], group.name!)} onPointerMove={move} onPointerUp={finish} onPointerCancel={clear} onLostPointerCapture={clear} onContextMenu={event => openMenu(event, { kind: 'group', group, x: event.clientX, y: event.clientY })}>
-          <span className="chip-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span><span className="chip-name">{group.name}</span><small>{group.items.length}</small>{group.unread && <i className="chip-unread" title="Unread result" />}{group.working && <i className="chip-working" title="Working" />}
+          <span className="chip-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span><span className="chip-name">{group.name}</span><small>{group.items.length}</small>{folded && group.items.some(item => item.bypass && item.id !== selectedId) && <BypassBadge compact />}{group.unread && <i className="chip-unread" title="Unread result" />}{group.working && <i className="chip-working" title="Working" />}
         </button>
         {group.items.filter(item => !folded || item.id === selectedId).map(renderTab)}
       </div>
     })}
-    {dragging && dragged && <div className="chat-tab-ghost" style={{ left: dragging.x + 13, top: dragging.y + 13, color: dragged.tabColor || '#d8c9da' }} aria-hidden="true"><SessionLogo session={dragged} /><span>{dragged.name}</span>{dragged.pinned && <Icon name="pin" size={12} />}</div>}
+    {dragging && dragged && <div className="chat-tab-ghost" style={{ left: dragging.x + 13, top: dragging.y + 13, color: dragged.tabColor || '#d8c9da' }} aria-hidden="true"><SessionLogo session={dragged} /><span>{dragged.name}</span>{dragged.bypass && <BypassBadge />}{dragged.pinned && <Icon name="pin" size={12} />}</div>}
     {dragging && draggedGroup && <div className="chat-tab-ghost group-ghost" style={{ left: dragging.x + 13, top: dragging.y + 13, color: draggedGroup.color }} aria-hidden="true"><span className="chip-caret">▾</span><span>{draggedGroup.name}</span><small>{draggedGroup.items.length}</small></div>}
     {menu && <div className="tab-menu" role="menu" style={{ left: Math.max(4, Math.min(menu.x, window.innerWidth - 260)), top: Math.max(4, Math.min(menu.y, window.innerHeight - (menu.kind === 'tab' ? 470 : 290))) }}>
       {menu.kind === 'tab' ? <>

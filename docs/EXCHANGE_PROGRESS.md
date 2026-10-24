@@ -1,6 +1,6 @@
 # Exchange Shell: progress and handoff
 
-Last updated 2026-10-24, during phase 5c. 5a (#1) and 5b (#4) are merged.
+Last updated 2026-10-24, during phase 5d. 5a (#1), 5b (#4) and 5c (#5) are merged.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -32,8 +32,8 @@ history restore, and the per-session bypass checkbox with a badge on the tab.
 | --- | --- | --- |
 | 5a (#1) | Foundation: upstream history and remote, this doc, Windows-only CI, the unmodified app built and run on the dev machine | merged |
 | 5b (#4) | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | merged |
-| 5c | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | in review |
-| 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | planned |
+| 5c (#5) | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | merged |
+| 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | in review |
 
 The PRs are stacked: each is based on the previous one.
 
@@ -114,8 +114,11 @@ Windows 10 Pro 19043, checked 2026-10-24:
   10.0.22621, WebView2 Runtime 155.
 - Claude Code (native `claude.exe`), Codex CLI 0.164.0. Windows PowerShell 5.1
   is the shell tab; `pwsh` is not installed.
-- Kimi CLI: not installed yet. Its installer is for the user to run (an agent's
-  run of downloaded installer code was blocked). 5d needs it.
+- Kimi Code CLI 2.3.1 (`~\.kimi-code\bin\kimi.exe`), installed by the user.
+  The user's Kimi subscription does not include Kimi Code: every turn returns
+  "403 Your current subscription does not have access to Kimi Code".
+- One-time CLI choices made by the user: Claude Code's Bypass Permissions
+  acknowledgement, and Kimi's trust of this folder.
 
 Checks, from the repository root:
 
@@ -129,6 +132,19 @@ npm run desktop:test:ui
 npm run desktop:prepare
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+Against the real, signed-in CLIs (opt-in, never in CI):
+
+```powershell
+node desktop/service/exchange/test-clis.mjs
+node desktop/service/exchange/test-clis.mjs --use-subscription
+```
+
+The first only launches each CLI with and without bypass and checks its own
+permission-mode indicator. `--use-subscription` adds one tiny turn per agent
+before and after closing the tab and reopening it from History. It never answers
+a CLI's one-time questions (bypass acknowledgement, folder trust, sign-in); it
+stops and names them instead.
 
 `cargo test` needs `.cache/desktop-runtime`, which `desktop:prepare` (or a full
 `npm run desktop:build`) creates; without it the Tauri build script stops with
@@ -191,10 +207,52 @@ actions in 5b.)
 - `Setup.ps1` keeps Check, Desktop and Update; Preview went with the browser
   report preview.
 
+### What 5d changed
+
+- **Bypass per chat:** New chat's checkbox starts unchecked every time and the
+  choice is not saved; `settings.defaultBypass` and its Settings toggle are gone
+  (a saved value is dropped on load). The service bypasses only on an explicit
+  `bypass: true` in the request. Resume and handoff keep the chat's own flag
+  (decision 8).
+- **Badge:** `src/exchange/BypassBadge.tsx`, an amber "BYPASS" pill on the tab,
+  in the chat's header, on History and Find-a-chat rows, and as a compact "!" on
+  a collapsed group's chip that hides a bypassed tab. The status bar still says
+  "Bypass".
+- **Agents (decision 7):** `src/exchange/agents.ts` lists Claude Code, Codex,
+  Kimi and PowerShell always, and Antigravity and OpenCode only when installed or
+  used by an existing chat (New chat, History filters, Settings › Default agent).
+- **Kimi Code 2.x bypass:** `--yolo` now means "Ask When Needed"; the full bypass
+  is `--auto` ("Never Ask"). `desktop/service/exchange/kimi.mjs` detects `--auto`
+  in `kimi --help` and the shell uses it when present, `--yolo` otherwise.
+- **Parent Claude Code session markers:** a shell started from inside a Claude
+  Code session passed `CLAUDE_CODE_CHILD_SESSION` and other session markers to its
+  terminals, which turned off the child's transcript (and so History restore).
+  `childEnvironment` now drops the session markers and keeps configuration such
+  as `ANTHROPIC_BASE_URL` and `CLAUDE_CONFIG_DIR`.
+- **Tests:** `desktop/service/exchange/test/chats-ui.mjs` (in
+  `desktop:test:ui` and CI) and `desktop/service/exchange/test/agents.test.mjs`
+  (in `npm test`).
+
+**Real-CLI results (2026-10-24, `test-clis.mjs --use-subscription`):**
+
+| CLI | Without bypass | With bypass | Close, reopen from History |
+| --- | --- | --- | --- |
+| Claude Code 2.1.304 | own prompts | "bypass permissions on" | same native ID; remembered its first reply |
+| Codex 0.164.0 | own prompts | "YOLO mode" | same native ID; remembered its first reply |
+| Kimi Code 2.3.1 | own prompts | "Never Ask" | not verifiable: the subscription has no Kimi Code access (403) |
+| PowerShell 5.1 | runs commands | (no bypass) | reopens as a fresh shell in the same folder |
+
 ## Known gaps and next candidates
 
-- **Decision 7 (hide Antigravity and OpenCode unless installed)** is not done
-  yet; New chat lists them as "Not installed". It belongs with 5d.
+- **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
+  first successful message and no longer prints a session line at startup. The
+  upstream ID capture looks for `Session: session_…` on screen, which may not
+  match 2.x; `kimi session` can list sessions non-interactively if it needs
+  replacing. Check once the Kimi subscription includes Kimi Code.
+- Reopening a CLI replays its history; text sent before its input box is live
+  can sit unsubmitted. The Conversation view sends only when the user does, so
+  this showed up only in the scripted check, which now waits for the screen to
+  settle.
 - The Workspace placeholder keeps the dark command-deck look in the light theme;
   phase 6 brings the real Workspace.
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet

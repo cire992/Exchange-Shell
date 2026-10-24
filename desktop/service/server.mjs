@@ -41,9 +41,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
   const transcripts = new ConversationTranscripts();
   const conversationMedia = new ConversationMedia();
   const settingsPath = path.join(stateDir, 'settings.json');
-  // Settings saved by removed features (voice, coordinator, dictation, card routes) are dropped on load.
-  const { coordinatorModel, coordinatorEffort, voiceName, voiceStyle, transcribeProvider, workspaceRoute, ...savedSettings } = await readJson(settingsPath, {}) || {};
-  let settings = { defaultAgent: 'codex', defaultBypass: false, terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', handoffAfter: 40, groupTabsByProject: false, systemEvents: 'compact', ...savedSettings };
+  // Settings saved by removed features (voice, coordinator, dictation, card routes,
+  // a remembered bypass choice) are dropped on load.
+  const { coordinatorModel, coordinatorEffort, voiceName, voiceStyle, transcribeProvider, workspaceRoute, defaultBypass, ...savedSettings } = await readJson(settingsPath, {}) || {};
+  let settings = { defaultAgent: 'codex', terminalFontSize: 13, terminalAppearance: 'original', workspaceTheme: 'dark', handoffAfter: 40, groupTabsByProject: false, systemEvents: 'compact', ...savedSettings };
   const projectList = () => recentProjects({ repo, sessions: sessions.list(), pinned: settings.pinnedProjects || [] });
   let selectedId = sessions.active().some(item => item.id === settings.selectedId) ? settings.selectedId : sessions.active()[0]?.id || null;
   let settingsTimer;
@@ -190,7 +191,6 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         }
         if (method === 'POST' && url.pathname === '/api/settings') {
           if (inventory().some(item => item.id === data.defaultAgent)) settings.defaultAgent = data.defaultAgent;
-          if (typeof data.defaultBypass === 'boolean') settings.defaultBypass = data.defaultBypass;
           if (Number.isInteger(data.terminalFontSize) && data.terminalFontSize >= 10 && data.terminalFontSize <= 24) settings.terminalFontSize = data.terminalFontSize;
           if (['focus', 'original'].includes(data.terminalAppearance)) settings.terminalAppearance = data.terminalAppearance;
           if (typeof data.terminalOptionMeta === 'boolean') settings.terminalOptionMeta = data.terminalOptionMeta;
@@ -201,7 +201,8 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           if (Array.isArray(data.collapsedGroups)) settings.collapsedGroups = [...new Set(data.collapsedGroups.filter(item => typeof item === 'string' && item.length <= 60))].slice(0, 200);
           await saveSettings(); broadcast('settings', { settings }); return json(response, 200, settings);
         }
-        if (method === 'POST' && url.pathname === '/api/sessions') { const session = await sessions.create({ ...data, bypass: data.bypass ?? settings.defaultBypass }); await integrations.publish('session', { event: 'started', session }); focus(session.id); return json(response, 201, session); }
+        // Bypass is chosen per chat and never inherited from a setting.
+        if (method === 'POST' && url.pathname === '/api/sessions') { const session = await sessions.create({ ...data, bypass: data.bypass === true }); await integrations.publish('session', { event: 'started', session }); focus(session.id); return json(response, 201, session); }
         if (method === 'POST' && url.pathname === '/api/groups/move') return json(response, 200, await sessions.moveGroup(data.group, data.pinned, data.targetId, data.position));
         if (method === 'POST' && url.pathname === '/api/groups/rename') {
           // A renamed group keeps its color and collapsed state; merging into an

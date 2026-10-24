@@ -102,6 +102,27 @@
 
 .exchange-mark { flex-shrink: 0; }
 
+/* Permission bypass: amber means "acts without asking". */
+.bypass-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 5px;
+  border: 1px solid #f2a33a8c;
+  border-radius: 4px;
+  background: #f2a33a26;
+  color: #f2a33a;
+  font: 700 9px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.bypass-badge.compact {
+  width: 15px;
+  justify-content: center;
+  padding: 0;
+}
 @media (max-width: 480px) {
   .exchange-panel { padding: 20px; }
   .exchange-gauge { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; }

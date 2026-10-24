@@ -128,7 +128,10 @@ UI tests use an isolated repository and fake terminals. They run in Edge, the
 engine behind WebView2. Set `MRMAK_TEST_BROWSER` to `msedge`, `chrome` or
 `chromium` to override; `chromium` needs `npx playwright install chromium` first. Subscription smoke
 checks are separate scripts with explicit opt-in flags; they are never part of
-the default test command.
+the default test command. `desktop/service/exchange/test-clis.mjs` checks the
+installed Claude Code, Codex, Kimi and PowerShell: launch with and without
+bypass, and with `--use-subscription` a resume from History (see
+`docs/EXCHANGE_PROGRESS.md`).
 
 OpenCode has a separate no-account integration test against a local mock model:
 

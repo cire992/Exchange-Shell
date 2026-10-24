@@ -17,8 +17,9 @@ key and makes no paid calls of its own. Sign in to each CLI once in its terminal
 1. Press **+** (Ctrl+Shift+T), choose the agent and its working folder, and give
    the chat a clear English name.
 2. **Bypass agent permission prompts** removes the agent's own approval prompts
-   for that one chat. Exchange cannot sandbox a bypassed agent, so use it
-   deliberately.
+   for that one chat. It starts unchecked for every new chat, and a bypassed chat
+   shows an amber **BYPASS** badge on its tab, in its header and in History.
+   Exchange cannot sandbox a bypassed agent, so use it deliberately.
 3. Closing a tab keeps the conversation in **History** (Ctrl+Shift+H). Reopening
    it resumes the same native conversation through the CLI's own session ID.
 

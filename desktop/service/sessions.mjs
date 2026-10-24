@@ -14,6 +14,7 @@ import { defaultWorkerEffort, workerEfforts } from './effort.mjs';
 import { ptyOptions } from './platform.mjs';
 import { opencodeVersion, opencodeEnvironment, readOpencodeState, watchOpencode } from './opencode.mjs';
 import { prepareAntigravityLog, readAntigravityConversation, validAntigravityId, watchAntigravity } from './antigravity.mjs';
+import { kimiSupportsAuto } from './exchange/kimi.mjs';
 
 const { Terminal } = headless;
 // Native CLIs record getcwd(): symlinks resolved (/tmp -> /private/tmp, cloud
@@ -178,8 +179,9 @@ export class Sessions extends EventEmitter {
     if (session.agent === 'antigravity' && resumeId && !validAntigravityId(resumeId)) throw new Error('Use the Antigravity conversation UUID from its /resume picker.');
     const antigravityLog = session.agent === 'antigravity' ? await prepareAntigravityLog(this.stateDir, session.id) : undefined;
     const noDaemon = session.agent === 'codex' && await codexSupportsNoDaemon(env);
+    const kimiAuto = session.agent === 'kimi' && session.bypass && await kimiSupportsAuto(env);
     if (this.closed || !session.open) throw new Error('The chat was closed before its terminal started.');
-    const command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, noDaemon, ...first });
+    const command = terminalCommand(session.agent, { bypass: session.bypass, resumeId, nativeId: session.nativeId, effort: session.effort, opencodeMajor, antigravityLog, noDaemon, kimiAuto, ...first });
     if (session.agent === 'codex') env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE = `mrmak_chat_${session.id}`;
     if (session.terminal) this.resetTerminal(session);
     const proc = pty.spawn(command.file, command.args, ptyOptions({ cwd: session.cwd, env, cols: session.cols, rows: session.rows }));

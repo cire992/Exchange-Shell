@@ -29,9 +29,11 @@ for (const name of skillNames) {
 assert.deepEqual(JSON.parse(await read('.mcp.json')), { mcpServers: {} }, 'No MCP connections are committed.');
 assert.doesNotMatch(await read('.env.example'), /^\w+=(?!\s*$)\S+/m, 'The example env must contain no assigned values.');
 
-// Permission bypass is never on unless chosen for a session.
-assert.match(await read('src/desktop/client.ts'), /defaultBypass: false/);
-assert.match(await read('desktop/service/server.mjs'), /defaultBypass: false/);
+// Permission bypass is never on unless chosen for that chat: no remembered
+// default, an unchecked box in New chat, and an explicit true from the request.
+for (const file of ['src/desktop/client.ts', 'src/desktop/types.ts', 'src/desktop/WorkspaceSettings.tsx']) assert.doesNotMatch(await read(file), /defaultBypass/, `${file} must not keep a bypass default`);
+assert.match(await read('src/desktop/Chats.tsx'), /const \[bypass, setBypass\] = useState\(false\)/);
+assert.match(await read('desktop/service/server.mjs'), /sessions\.create\(\{ \.\.\.data, bypass: data\.bypass === true \}\)/);
 assert.match(await read('desktop/service/sessions.mjs'), /bypass: options\.bypass === true/);
 assert.match(await read('desktop/service/sessions.mjs'), /pinned = false, bypass = false/);
 
