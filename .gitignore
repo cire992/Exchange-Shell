@@ -41,3 +41,6 @@ Thumbs.db
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Exchange: machine-specific paths stay local (this repository is public).
+docs/USEFUL_PATHS.md
