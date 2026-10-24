@@ -18,6 +18,8 @@ jobs:
       - run: npm test
       - run: npm run test:template
       - run: npm run build
+      # The Tauri build bundles .cache/desktop-runtime, which prepare creates.
+      - run: npm run desktop:prepare
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run test:preview
       - run: node desktop/service/test/theme-ui.mjs

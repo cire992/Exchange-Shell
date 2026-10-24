@@ -128,8 +128,13 @@ npm run test:template
 npm run build
 npm run desktop:test:ui
 npm run test:preview
+npm run desktop:prepare
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+`cargo test` needs `.cache/desktop-runtime`, which `desktop:prepare` (or a full
+`npm run desktop:build`) creates; without it the Tauri build script stops with
+"resource path doesn't exist".
 
 **Known test failures on this machine** (upstream code, before any Exchange
 change):
