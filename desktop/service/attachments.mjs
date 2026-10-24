@@ -21,7 +21,7 @@ export class Attachments {
     const folder = path.join(this.repo, 'inbox', 'attachments', date.slice(0, 10));
     await mkdir(folder, { recursive: true });
     const actual = await realpath(folder);
-    if (!within(await realpath(this.repo), actual)) throw new Error('The attachments folder must stay inside MR-MAK.');
+    if (!within(await realpath(this.repo), actual)) throw new Error('The attachments folder must stay inside the Exchange Shell repository.');
     const basename = path.basename(String(name), path.extname(String(name))).replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 65) || 'Screenshot';
     const file = path.join(actual, `${basename}-${date.slice(11, 19).replaceAll(':', '')}-${randomUUID().slice(0, 8)}${extension}`);
     await writeFile(file, data, { flag: 'wx' });

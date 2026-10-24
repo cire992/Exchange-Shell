@@ -1,18 +1,20 @@
 # Project skills
 
-Twenty skills live in this project. `.agents/skills` is the maintained source
-for Codex; `.claude/skills` contains complete, identical copies for Claude Code,
-including scripts and references. Both Skills sections open the full instructions.
-These are local project files, not global installations.
+Eighteen skills come with the shell, kept from Mr. Mak Workspace: concept art,
+planning and handoffs, and 3D and game production (see the Exchange design
+spec, *Skills*). `.agents/skills` is the maintained source for Codex;
+`.claude/skills` contains complete, identical copies for Claude Code, including
+scripts and references. These are local project files, not global installations.
 
 Claude reads the instructions in its own `SKILL.md` when a skill is used; a
 Markdown link is just a request to read another file, not automatic inheritance.
-The template includes full folders so a normal Windows clone needs no symlinks.
+Full folders are committed, so a normal Windows clone needs no symlinks.
 See [Claude's skill format](https://code.claude.com/docs/en/skills).
 
 For shared changes, edit `.agents/skills`, then run `npm run skills:sync`.
 If you edited a Claude copy directly, first move that intended change into the
-maintained source. `npm run test:template` checks that the two copies agree.
+maintained source. `npm run test:repo` checks that the two copies agree and that
+the set of skills is the expected one.
 
 | Skill | Use it for |
 | --- | --- |
@@ -34,50 +36,27 @@ maintained source. `npm run test:template` checks that the two copies agree.
 | [motion-reference-workflow](../.agents/skills/motion-reference-workflow/SKILL.md) | Prepare and select character motion references, or transfer approved motion to a human reference for a later mocap workflow. |
 | [plan](../.agents/skills/plan/SKILL.md) | Turn a broad project request into a small actionable plan with concrete deliverables, dependencies and acceptance checks. |
 | [video-watch](../.agents/skills/video-watch/SKILL.md) | Inspect a local or publicly accessible video through sampled scene frames, timestamps and a visual report, especially for motion and 3D reference analysis. |
-| [workspace-authoring](../.agents/skills/workspace-authoring/SKILL.md) | Create or maintain Workspace cards, report tabs and Markdown deliverables with consistent styling, working media previews and clear project organization. |
 
-## Game production in 0.4.14
+Exchange's own skills (identity interview, claim dispatch briefs, process
+authoring and drift review) arrive with roadmap phase 8, when project homes and
+the Exchange MCP exist.
 
-The six new game workflows connect concept work to implementation. They describe
-how to inspect an existing project, preserve accepted work, hand over exact
-event markers and review the result in the engine. They contain no private game
-assets, character names, fixed balance values or personal working preferences.
-Examples are illustrative; the receiving project's rules remain authoritative.
+## Game production
 
-Blender animation now covers multiple Action owners, slots, bind-basis checks
-and portable clip exports. Motion references keep a stable take ledger and
-separate appearance transfer from mocap. Handoffs separate a selected proposal,
+The game workflows connect concept work to implementation. They describe how to
+inspect an existing project, preserve accepted work, hand over exact event
+markers and review the result in the engine. Examples are illustrative; the
+receiving project's rules remain authoritative. Exchange will adapt them to
+Unreal and Bethesda targets.
+
+Blender animation covers multiple Action owners, slots, bind-basis checks and
+portable clip exports. Motion references keep a stable take ledger and separate
+appearance transfer from mocap. Handoffs separate a selected proposal,
 implementation, agent verification and user acceptance. The routing skill helps
 an agent choose among these workflows.
 
 These are instructions for agents, not bundled editor integrations. Use your
-existing Unity or Blender connection, and check its available operations.
-Generation is optional. A skill does not install an engine, connect an MCP
-server or perform paid work by itself.
-
-## Use the skills in another project
-
-The release includes a separate **Mr-Mak-Skills-0.4.14.zip**. Extract it to a
-temporary folder, then ask your agent to read `SKILLS-README.md` and copy only
-the chosen modules and their dependencies into your project. Keep full skill
-folders, including scripts, references and licences. The ZIP includes complete
-Codex and Claude copies; no global installation or symlink is required.
-
-The eight original creative modules and six new game workflows can be copied
-with their own local resources. Preserve any referenced sibling skill when you
-choose to use it. Keep the full img2threejs folder and its licences.
-
-Workspace authoring and video inspection also reference this
-repository's processes, knowledge and scripts. Copy those referenced files when
-extracting a module; the ZIP includes these support files and shared report
-assets. Merge them with an existing project instead of replacing its instructions,
-reports or shared styles. Planning and handoff skills use the receiving project's
-conventions. The standalone pack contains no Workspace cards or application.
-
-A skill does not authenticate a provider or install a tool. Follow its setup
-references and bring your own account. Credentials and raw paid-job receipts
-must stay outside a shared skill pack.
-
-For an existing Mr. Mak installation, see the
-[update guide](https://github.com/witnesstodark/mr-mak-workspace/blob/main/docs/updating.md). Installing the
-desktop update alone does not put new skills into your repository.
+existing editor connection and check its available operations. Generation is
+optional: a skill does not install an engine, connect an MCP server, authenticate
+a provider or perform paid work by itself. Credentials and paid-job receipts stay
+out of Git.

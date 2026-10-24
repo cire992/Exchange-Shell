@@ -8,7 +8,7 @@ const sameFolder = (a: string, b: string) => {
   const clean = (value: string) => value.trim().replace(/[\\/]+$/, '').replace(/\//g, isWindows ? '\\' : '/')
   return isWindows ? clean(a).toLowerCase() === clean(b).toLowerCase() : clean(a) === clean(b)
 }
-const sourceLabel = (project: RecentProject) => project.sources.includes('workspace') ? 'Mr. Mak Workspace' : project.sources.includes('claude') ? 'Claude Code' : project.sources.includes('codex') ? 'Codex' : 'Mr. Mak'
+const sourceLabel = (project: RecentProject) => project.sources.includes('workspace') ? 'Exchange Shell' : project.sources.includes('claude') ? 'Claude Code' : project.sources.includes('codex') ? 'Codex' : 'Exchange'
 
 // Recent folders from Claude Code, Codex and earlier Mr. Mak chats, pinned favorites
 // first. The folder field stays editable.

@@ -18,5 +18,4 @@ claim to have watched every frame from a contact sheet.
 Keep visual observations separate from audio or transcript claims. URL downloads
 in this helper prefer video-only streams; do not assume they contain audio.
 For transcription, use the original audio through
-a separately configured tool. Create an English summary with evidence and links
-in the existing task card. Use `workspace-authoring` for its presentation.
+a separately configured tool. Create an English summary with evidence and links.

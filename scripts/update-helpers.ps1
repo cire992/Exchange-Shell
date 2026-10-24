@@ -25,9 +25,9 @@ function Get-MakUpdateProcesses($Processes, [string[]]$InstallDirectories) {
 function Get-MakInstallDirectory {
   foreach ($taskRegistry in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
     $taskInstallEntry = Get-ItemProperty -Path $taskRegistry -ErrorAction SilentlyContinue |
-      Where-Object { $_.DisplayName -eq 'Mr. Mak Workspace' -and $_.InstallLocation } | Select-Object -First 1
+      Where-Object { $_.DisplayName -eq 'Exchange' -and $_.InstallLocation } | Select-Object -First 1
     # The NSIS installer records InstallLocation wrapped in quotes.
     if ($taskInstallEntry) { return [IO.Path]::GetFullPath($taskInstallEntry.InstallLocation.Trim().Trim('"')) }
   }
-  return (Join-Path $env:LOCALAPPDATA 'Mr. Mak Workspace')
+  return (Join-Path $env:LOCALAPPDATA 'Exchange')
 }

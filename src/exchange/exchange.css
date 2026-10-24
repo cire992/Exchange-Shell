@@ -1,0 +1,108 @@
+/* Exchange's own surfaces: a used-future command deck. Amber and teal carry
+   meaning (current state, actions); everything else stays dark and quiet. */
+:root {
+  --exchange-panel: #15130f;
+  --exchange-edge: #3a2f1e;
+  --exchange-text: #e8dcc6;
+  --exchange-muted: #9a8c74;
+  --exchange-amber: #f2a33a;
+  --exchange-teal: #3fc1b0;
+}
+
+.exchange-placeholder {
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  overflow: auto;
+  background: radial-gradient(circle at 50% 30%, #1d1912 0, #0d0c0a 70%);
+  color: var(--exchange-text);
+}
+
+.exchange-panel {
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--exchange-edge);
+  border-radius: 14px;
+  background: var(--exchange-panel);
+  box-shadow: 0 0 0 1px #00000060, 0 24px 60px #00000080;
+}
+
+.exchange-eyebrow {
+  font: 600 11px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--exchange-amber);
+}
+
+.exchange-panel h1 {
+  margin: 0;
+  font: 600 24px/1.25 var(--font-body, system-ui);
+  color: var(--exchange-text);
+}
+
+.exchange-panel p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--exchange-muted);
+}
+
+.exchange-gauge {
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.exchange-gauge li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 4px solid #2a241a;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--exchange-muted);
+}
+
+.exchange-gauge li span {
+  font: 600 11px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color: #6f6450;
+}
+
+.exchange-gauge li.current {
+  border-top-color: var(--exchange-teal);
+  color: var(--exchange-text);
+}
+
+.exchange-gauge li.current span { color: var(--exchange-teal); }
+
+.exchange-button {
+  margin-top: 6px;
+  padding: 9px 16px;
+  border: 1px solid var(--exchange-amber);
+  border-radius: 8px;
+  background: #f2a33a1a;
+  color: var(--exchange-amber);
+  font: 600 13px/1 var(--font-body, system-ui);
+  cursor: pointer;
+}
+
+.exchange-button:hover { background: #f2a33a2e; }
+.exchange-button:focus-visible { outline: 2px solid var(--exchange-teal); outline-offset: 2px; }
+
+.exchange-mark { flex-shrink: 0; }
+
+@media (max-width: 480px) {
+  .exchange-panel { padding: 20px; }
+  .exchange-gauge { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; }
+}

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { lazy, Suspense } from 'react'
-import App from './App'
+import WorkspacePlaceholder from './exchange/WorkspacePlaceholder'
 import { isDesktop } from './desktop/client'
 import WorkspaceTheme from './components/WorkspaceTheme'
 import './styles/tokens.css'
@@ -16,7 +16,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <WorkspaceTheme />
     <Suspense fallback={<div className="boot" />}>
-      {isDesktop ? <DesktopApp /> : <App />}
+      {isDesktop ? <DesktopApp /> : <WorkspacePlaceholder />}
     </Suspense>
   </StrictMode>,
 )

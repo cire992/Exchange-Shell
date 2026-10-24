@@ -1,6 +1,6 @@
 # Exchange Shell: progress and handoff
 
-Last updated 2026-10-24, during phase 5b. 5a is merged (#1).
+Last updated 2026-10-24, during phase 5c. 5a is merged (#1); 5b (#4) is in review.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -16,9 +16,8 @@ Read this first, then these files in the Exchange repository:
   *User interface* and *Architecture* (including *The fork*).
 - `docs/PROGRESS.md`: the core's handoff doc, in particular *Design pivot*.
 
-Then this repository's [AGENTS.md](../AGENTS.md) and
-[desktop/README.md](../desktop/README.md). Their Mr. Mak rules still apply
-until phase 5 replaces them.
+Then this repository's [AGENTS.md](../AGENTS.md) (working rules) and
+[desktop/README.md](../desktop/README.md) (architecture and checks).
 
 ## Where we are
 
@@ -32,8 +31,8 @@ history restore, and the per-session bypass checkbox with a badge on the tab.
 | PR | What | State |
 | --- | --- | --- |
 | 5a (#1) | Foundation: upstream history and remote, this doc, Windows-only CI, the unmodified app built and run on the dev machine | merged |
-| 5b | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | in review |
-| 5c | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | planned |
+| 5b (#4) | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | in review |
+| 5c | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | in review |
 | 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | planned |
 
 The PRs are stacked: each is based on the previous one.
@@ -62,8 +61,8 @@ The same as the Exchange repository:
 - Mr. Mak is the `upstream` remote. Merge `upstream/main` into a branch, never
   rebase onto it, so this repository's history stays intact.
 - Exchange's additions go in their own folders (`src/exchange/`,
-  `desktop/service/exchange/`, `docs/EXCHANGE_*.md`) rather than in edits to
-  upstream files.
+  `desktop/service/exchange/`, `scripts/exchange/`, `docs/EXCHANGE_*.md`)
+  rather than in edits to upstream files.
 - Removed upstream features are deleted as whole files, with small cuts where
   they connect to kept files. An upstream change to a deleted file then shows
   up as a modify/delete conflict; resolve it by keeping the deletion.
@@ -91,8 +90,8 @@ Phase 5, approved 2026-10-24:
    `com.exchange.shell`, so its app data stays separate from Mr. Mak's. Internal
    names stay (see above). A simple temporary amber and teal icon.
 6. **Root folder:** the shell keeps using this repository checkout as its root.
-   The startup check for `workspace/workspace.json` is replaced by an Exchange
-   marker file in 5c. Project homes come in phase 7.
+   The shell recognizes it by `exchange-shell.json` (since 5c; it used to be
+   `workspace/workspace.json`). Project homes come in phase 7.
 7. **Antigravity and OpenCode:** their code stays, so merges stay easy, but the
    new-chat list hides them unless they are installed.
 8. **Bypass on resume and handoff:** keep the upstream behavior. A resumed chat
@@ -124,10 +123,9 @@ Checks, from the repository root:
 npm ci
 npm run lint
 npm test
-npm run test:template
+npm run test:repo
 npm run build
 npm run desktop:test:ui
-npm run test:preview
 npm run desktop:prepare
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
@@ -154,18 +152,51 @@ actions in 5b.)
   (`ConversationTranscripts`, which the desktop Conversation view reads) and six
   files in `src/mobile/` that the desktop reuses (`SystemEvent`, `BackgroundWork`,
   `ConversationImages`, `ImageViewer`, `workspace-context`, `app-state`).
-  `mobile-report-state.mjs` stays with the report and card code until 5c.
+  `mobile-report-state.mjs` stays: the HTML report preview uses it.
 - **The `coordinator` option of `sessions.input`** now only means "pasted and
   submitted by the app" (the Conversation view and handoffs use it). Its
   upstream name is kept.
 
+### What 5c removed, changed and added
+
+- **Card registry:** the sample cards, `workspace/workspace.json`, the
+  Workspace React app (home grid, sidebar, top bar, card editor, report viewer,
+  3D compare), the service's card and registry routes (`workspace.mjs`,
+  `card-documents.mjs`, `card-schema.mjs`), the asset-delivery evidence tool and
+  the `three` dependency. `workspace/_shared/` stays: its `report.css` styles the
+  image lightbox and HTML previews, and its `help.md` is the Help page
+  (rewritten for Exchange).
+- **Persona:** `context/`, the sample project, the `workspace-authoring` skill,
+  the nose logo and Mr. Mak's own docs (customization, editable cards, macOS,
+  sharing, the skills pack, updating, release notes, screenshots), plus
+  `setup.sh`, the `.command` launcher and the skills-pack builder.
+- **Branding:** product name "Exchange", identifier `com.exchange.shell` (fresh
+  app data and window state), window and tray text, user-facing messages,
+  `Start Exchange.cmd`, a temporary amber and teal mark (`public/assets/exchange-mark.svg`,
+  `src/exchange/ExchangeMark.tsx`) and icons generated from it with
+  `tauri icon`; the Chats icon has a teal frame. NSIS is the only bundle target.
+  Internal names and protocol strings (the handoff request marker, `.mrmak/`,
+  `MRMAK_*`) are unchanged.
+- **Workspace window:** `src/exchange/WorkspacePlaceholder.tsx` with the files
+  rail. HTML and Markdown previews still work from Files and from chat links.
+- **Checks:** `scripts/exchange/check-repo.mjs` (`npm run test:repo`) replaces
+  the template, preview and asset checks: the 18 kept skills, empty `.mcp.json`
+  and `.env.example` values, bypass off by default, Exchange naming, license
+  files. `ui`, `links-ui` and `theme-ui` now open reports from the files rail;
+  the card UI suites are gone.
+- **Docs:** new `README.md`, `AGENTS.md`, `CLAUDE.md`, getting started, the
+  skills index, `SECURITY.md` (reports to this repository) and
+  `THIRD_PARTY_NOTICES.md` (fork attribution added; entries for removed samples
+  replaced). `LICENSE` and `CHANGELOG.md` (Mr. Mak's history) are unchanged.
+- `Setup.ps1` keeps Check, Desktop and Update; Preview went with the browser
+  report preview.
+
 ## Known gaps and next candidates
 
-- **Docs left for 5c's branding pass:** the root `README.md` (Mr. Mak's product
-  page, which `check-template.mjs` pins), `docs/macos.md` and `docs/updating.md`
-  (Mr. Mak release and macOS notes), and the sample card
-  `workspace/2026-09-15_make-workspace-yours/get-started.md` still describe voice
-  and mobile access, and some link to the removed `docs/mobile-access.md`.
+- **Decision 7 (hide Antigravity and OpenCode unless installed)** is not done
+  yet; New chat lists them as "Not installed". It belongs with 5d.
+- The Workspace placeholder keeps the dark command-deck look in the light theme;
+  phase 6 brings the real Workspace.
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.
 - `.github/dependabot.yml` still opens weekly pull requests for workflow pins.
