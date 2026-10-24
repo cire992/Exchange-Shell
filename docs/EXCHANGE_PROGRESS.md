@@ -1,6 +1,6 @@
 # Exchange Shell: progress and handoff
 
-Last updated 2026-10-24, during phase 5c. 5a is merged (#1); 5b (#4) is in review.
+Last updated 2026-10-24, during phase 5c. 5a (#1) and 5b (#4) are merged.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -31,7 +31,7 @@ history restore, and the per-session bypass checkbox with a badge on the tab.
 | PR | What | State |
 | --- | --- | --- |
 | 5a (#1) | Foundation: upstream history and remote, this doc, Windows-only CI, the unmodified app built and run on the dev machine | merged |
-| 5b (#4) | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | in review |
+| 5b (#4) | Remove the voice coordinator, mobile access and in-app speech (OpenAI Live, coordinator, quick actions, pairing, Tailscale, dictation, read-aloud), with their routes, UI, tests, docs and `.env.example` entries | merged |
 | 5c | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | in review |
 | 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | planned |
 
