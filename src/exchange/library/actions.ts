@@ -1,4 +1,4 @@
-import { exchangeDelete, exchangePost } from '../api'
+import { exchangeDelete, exchangePost, type DeskFolder } from '../api'
 import type { Editing } from './editing'
 
 // Every edit the library view makes, through the core's write API. Each returns the edit's result,
@@ -22,6 +22,12 @@ export function libraryActions(edit: Editing['edit']) {
     accept: (ids: number[]) => edit(() => exchangePost('suggestions/accept', { body: { ids } })),
     reject: (ids: number[]) => edit(() => exchangePost('suggestions/reject', { body: { ids } })),
     undoEntry: (id: number) => edit(() => exchangePost('history/{log_id}/undo', { path: { log_id: id } })),
+    // The Unidentified desk's folders of unattached files, and lexicons
+    productFromFolder: (name: string, folder: DeskFolder) => edit(() => exchangePost('edits/products', { body: { name, children: [], folder } })),
+    linkFolder: (uid: string, folder: DeskFolder) => edit(() => exchangePost('edits/link-files', { body: { uid, folder } })),
+    ignoreFolder: (environment: number, folder: string, ignored = true) => edit(() => exchangePost('edits/ignore-folder', { body: { environment, folder, ignored } })),
+    lexiconWord: (lexicon: string, value: string, word: string, present: boolean) =>
+      edit(() => exchangePost('lexicons/{lexicon_id}/words', { path: { lexicon_id: lexicon }, body: { value, word, present } })),
   }
 }
 

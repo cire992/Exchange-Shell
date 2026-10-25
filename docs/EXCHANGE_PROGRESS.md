@@ -8,7 +8,7 @@ the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phas
 first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
 fast capture. Those docs live in the Exchange repository only.
 
-Last updated 2026-10-25. Phase 5, 6c, 6d and 7c are merged; 6f part 1 is in review.
+Last updated 2026-10-25. Phase 5, 6c, 6d, 6f part 1 and 7c are merged; 6f part 2 is in review.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -56,8 +56,8 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 7c (#8) | A git checkpoint of the project home before every launch of a bypassed chat | merged |
 | 6d (#9) | Library browsing in the Workspace: sidebar, virtualized item cards, search, read-only inspector | merged |
 | #10 | Fix CI: keep the API-mismatch reason; a Claude Code stand-in in UI tests | merged |
-| 6f, part 1 | Curation in the Workspace: inspector editing, bulk edit, Undo/Redo, collections, card menus, drag and drop | in review |
-| 6f, part 2 | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | next |
+| 6f, part 1 (#11) | Curation in the Workspace: inspector editing, bulk edit, Undo/Redo, collections, card menus, drag and drop | merged |
+| 6f, part 2 | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
 
@@ -516,6 +516,82 @@ batches) and the lexicon editor.
 
   There were no page errors.
 
+### 6f, part 2: the Unidentified desk and the lexicon editor
+
+The rest of the window's curation, on the core's 6e routes (`desk/*`, `suggestions`, `lexicons`).
+
+- **The desk's piles:** in Unidentified, the heading has the window's three pile buttons with their
+  counts: Low confidence (the grid), Unattached files and Suggestions. Choosing another view goes back
+  to Low confidence, and so does a search.
+- **Unattached files** (`library/Unattached.tsx`, the window's UnattachedPanel):
+  - **The tree:** files no asset holds, by root and folder. A folder is counted when it is expanded,
+    one level at a time; with one root, it is counted at once.
+  - **Keys:** Up and Down move, Right expands, Left collapses or goes up, Enter toggles.
+  - **The chosen folder:** its count and up to 50 of its files.
+  - **Actions:**
+    - Make a product from this folder… (named after the folder; the inspector then shows it)
+    - Link these files to an asset… (an asset picker that searches the library)
+    - Not assets: ignore this folder (rescans skip it too)
+
+    A product or link takes at most 5,000 files, the core's limit; a bigger folder can only be
+    ignored. All three are undoable.
+  - **After an edit:** only the chosen folder's parent is counted again, even when the edit took the
+    chosen folder away, so Undo brings it back. Its subfolders stay shown meanwhile, and the folders
+    above it move by as much. Count again starts over (after a scan).
+- **Suggestions** (`library/Suggestions.tsx`, the window's SuggestionsPanel):
+  - **The list:** pending suggestions in pages of 300 (Show more), by kind, with counts.
+  - **Batches:** check rows (or Select all shown), then Accept checked or Reject checked, each batch
+    one undoable step.
+  - **A row** shows what it is about in the inspector.
+- **Lexicons** (`library/Lexicons.tsx`, the window's Settings › Lexicons; Definitions › Lexicons in
+  the sidebar):
+  - every lexicon, with what its kind does
+  - its words: from the list, found by scans (known authors), and read-only patterns, with a filter
+  - adding a word under a value (ignore and index words stand for nothing else), and removing one
+  - in a generated lexicon, removed found words are listed, and can be allowed again
+  - each word is an undoable edit, written to the user's copy of the lexicon in the core's data
+    folder (`EXCHANGE_DATA_DIR/definitions/lexicons/`). It applies to the next scan.
+    "Apply to library" (re-classifying now) needs the core's jobs API (6g); until then the editor
+    names `exchange classify`.
+- **Editing:** the desk's suggestions and the lexicons are read again after any edit, Undo included;
+  a rejection or a lexicon word changes nothing else (refresh `none`).
+- **Tests:** `desk-ui.mjs`, in the real UI against the fake core. The fake core's synthetic library
+  now has 5,010 unattached files in two roots (5,001 of them in one folder), 623 suggestions and
+  four lexicons. It covers:
+  - the pile counts
+  - counting levels
+  - a product from a folder and its Undo
+  - linking through the picker
+  - the 5,000-file limit
+  - ignoring and its Undo
+  - the tree's keys
+  - suggestions by page, kind and batch, with Undo
+  - adding, removing and undoing words
+  - patterns, the filter, found authors removed and allowed again
+  - a search leaving the lexicons
+- **With the real core:** `main` with 6e, on a fresh copy of the scratch scan of the real Daz library
+  (1,549,827 unattached files, 10,029 suggestions).
+
+  | Step | Time |
+  | --- | --- |
+  | The root counted | 7.5 s |
+  | Expand `data` (912,639 files, 2,247 folders) | 4.0 s |
+  | A product from a one-file vendor folder, until it leaves the tree | 8.0 s |
+  | Its Undo, until it is back | 11.3 s |
+  | Ignore a folder / its Undo | 4.8 s / 4.3 s |
+  | Suggestions: the first page of 300 | 0.1 s |
+  | Accept 300 variant groups, until the list is read again | 3.5 s |
+  | Undo the batch | 0.4 s |
+  | The lexicons / the 1,167 known authors | 0.14 s / 0.19 s |
+  | Add a word / its Undo | 0.34 s / 0.26 s |
+
+  There were no page errors.
+
+  Under `data`, counting the parent again takes about 3.5 s after each edit. The rest is the core's
+  write: an edit that links files (a product from a folder, a link, their Undo) takes 3.5 to 7 s,
+  because the curation engine applies the file links of the whole root (`apply_file_links` in
+  `curation.py`), about 1.5M files, on every such edit. A core change would fix that.
+
 ## Known gaps and next candidates
 
 - **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
@@ -528,13 +604,14 @@ batches) and the lexicon editor.
   this showed up only in the scripted check, which now waits for the screen to
   settle.
 - The Workspace keeps the dark command-deck look in the light theme (decided for phase 6).
+- **Edits that link files are slow on a big library:** 3.5 to 7 s on the real Daz scan, because the
+  core applies the file links of the whole root after each one (see 6f, part 2).
 - **Library view (6d):**
   - It does not hear about scans or edits made elsewhere; use Refresh.
   - Not yet in the Workspace:
     - the requisitions and "show candidates" parts of the library view (6i)
-    - the Unidentified desk's other piles: unattached files and suggestions (6f, part 2)
-    - the lexicon editor (6f, part 2)
-    - linking files onto an asset, Show in folder and Open in app
+    - linking files onto an asset from Explorer, Show in folder and Open in app
+    - "Apply to library" for lexicon edits (needs the core's jobs API, 6g)
     - sorting other than by name or type
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.

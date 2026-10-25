@@ -17,7 +17,7 @@ interface Props {
 const count = (n: number | null | undefined) => n === null || n === undefined ? '' : n.toLocaleString()
 
 // The library, collections, then environments › containers or dossier types, as in the PySide6
-// window's sidebar.
+// window's sidebar; then the lexicons (the window's Settings › Lexicons).
 export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (key: string) => setOpen(previous => ({ ...previous, [key]: !previous[key] }))
@@ -75,5 +75,7 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
     {data === null && !error ? <p className="library-muted">Counting the library…</p>
       : data?.environments.length ? data.environments.map(environment)
         : !error && <p className="library-muted">No environments yet. Add one in the PySide6 window or with <code>exchange scan</code>.</p>}
+    <h2>Definitions</h2>
+    {item({ kind: 'lexicons' }, 'Lexicons')}
   </nav>
 }
