@@ -19,12 +19,28 @@ export interface Brick {
   children: number
 }
 
+export interface Changes {
+  /** False without watchdog: no change notices */
+  available: boolean
+  /** Environments whose roots changed since they were last scanned */
+  environments: number[]
+  /** Ask again with since=version to wait for the next change */
+  version: number
+}
+
 export interface Choices {
   types: TypeChoice[]
   /** The category lexicon's tags, for completion */
   tags: string[]
   /** Fields POST /edits/fields can set */
   fields: string[]
+}
+
+export interface ClassifyJob {
+  /** Environment ids; none or empty is every one */
+  environments?: number[] | null
+  /** Also regroup hand-installed Daz products (after theme, author or category edits; minutes on a big library) */
+  regroup?: boolean
 }
 
 export interface Collection {
@@ -46,6 +62,11 @@ export interface CollectionCreate {
 export interface CollectionRef {
   uid: string
   name: string
+}
+
+export interface ConfigResult {
+  /** All its settings now */
+  user_config: Record<string, unknown>
 }
 
 export interface ContainerCount {
@@ -187,10 +208,73 @@ export interface Environment {
   roots: Root[]
 }
 
+/** An environment's settings; in a change, the fields given replace the ones it has (null or an empty list removes one). */
+export interface EnvironmentConfig {
+  /** Ignore rules (globs), from the next rescan */
+  ignore?: string[] | null
+  mo2_profile?: string | null
+  /** personal or publishable */
+  visibility?: string | null
+  /** The folder requisitions write to; null is the default */
+  endpoint?: string | null
+}
+
+export interface EnvironmentDetail {
+  id: number
+  uid: string
+  name: string
+  type_id: string
+  /** From its roots, as in the sidebar */
+  status: "online" | "offline" | "partial"
+  added_at: string
+  last_scanned_at?: string | null
+  roots: Root[]
+  /** The settings the user chose */
+  user_config: Record<string, unknown>
+  /** What scans found (an MO2 instance's profiles...) */
+  layer_config: Record<string, unknown>
+}
+
+export interface EnvironmentPlan {
+  type_id: string
+  /** Default: from the type and the folder */
+  name?: string | null
+  roots: RootPlan[]
+  config?: EnvironmentConfig
+}
+
 export interface EnvironmentRef {
   id: number
   name: string
   type_id: string
+}
+
+export interface EnvironmentReport {
+  /** Null in a dry run for an environment not yet registered */
+  id?: number | null
+  name: string
+  type_id: string
+  roots: RootReport[]
+  enrichment?: Record<string, unknown> | null
+}
+
+export interface EnvironmentType {
+  id: string
+  name: string
+  /** mo2, daz, unreal or folder: how its files are organized */
+  handler: string
+  /** Every root of this type joins one environment (Daz content directories) */
+  multi_root: boolean
+  /** Takes the files no other type claims (loose files) */
+  fallback: boolean
+  /** Always ignored */
+  ignore_globs: string[]
+  variants: VariantRef[]
+}
+
+export interface EnvironmentsJob {
+  /** Environment ids; none or empty is every one */
+  environments?: number[] | null
 }
 
 export interface FieldEdit {
@@ -220,6 +304,23 @@ export interface FoldEdit {
   variant: string
   /** The variant name for `into`'s own entries, if they have none */
   target_variant?: string | null
+}
+
+export interface FolderJob {
+  /** An absolute folder path */
+  folder: string
+}
+
+export interface FoundSource {
+  path: string
+  name: string
+  /** Where it was found (Steam, Epic, Daz, MO2...) */
+  via: string
+  /** The environment type it matches, if any */
+  type_id?: string | null
+  confidence?: number
+  signals?: string[]
+  registered?: boolean
 }
 
 export interface HTTPValidationError {
@@ -258,6 +359,35 @@ export interface IgnoreEdit {
   environment: number
   folder: string
   ignored?: boolean
+}
+
+export interface Job {
+  id: number
+  kind: "scan" | "detect" | "rescan" | "classify"
+  label: string
+  state: "running" | "done" | "failed" | "stopped"
+  /** It writes the library: one such job runs at a time */
+  writes: boolean
+  /** The environments it was asked for; empty is all */
+  environments: number[]
+  started_at: string
+  finished_at?: string | null
+  progress?: Progress | null
+  /** Why it failed, or what stopping it kept */
+  error?: string | null
+  /** Grows with every change; ask again with since=version to wait for the next */
+  version: number
+  /** A scan, detection or rescan's report, once it has ended */
+  report?: ScanReport | null
+  /** Another job's result (classify: counts), once ended */
+  result?: Record<string, unknown> | null
+}
+
+export interface JobList {
+  /** Grows with every change of any job */
+  version: number
+  /** Running first, then the latest finished; without reports */
+  jobs: Job[]
 }
 
 export interface Ledger {
@@ -303,6 +433,12 @@ export interface MergeEdit {
   into: string
 }
 
+export interface Mo2Profiles {
+  profiles: string[]
+  /** The profile the instance's ini selects */
+  selected?: string | null
+}
+
 export interface Page {
   items: Brick[]
   total: number
@@ -330,9 +466,35 @@ export interface ProductEdit {
   folder?: DeskFolder | null
 }
 
+/** A worker's latest progress line (a scan's: phase 1 discovery, 2 identification, 3 enrichment). */
+export interface Progress {
+  phase?: number | null
+  environment?: string | null
+  /** e.g. discovery, identification, hashing, thumbnails */
+  step?: string | null
+  done?: number
+  total?: number
+}
+
 export interface PromoteEdit {
   uid: string
   variant: string
+}
+
+export interface RegisterEnvironments {
+  environments: EnvironmentPlan[]
+  /** Folders found inside added ones that scans must never index */
+  exclude?: string[]
+}
+
+export interface Registered {
+  environments: RegisteredEnvironment[]
+}
+
+export interface RegisteredEnvironment {
+  id: number
+  name: string
+  type_id: string
 }
 
 export interface Root {
@@ -340,6 +502,41 @@ export interface Root {
   path: string
   status: "online" | "offline"
   offline_since?: string | null
+}
+
+export interface RootPlan {
+  path: string
+  confidence?: number
+  signals?: string[]
+}
+
+export interface RootReport {
+  path: string
+  confidence: number
+  signals: string[]
+  variant?: string | null
+  registered: boolean
+  /** scanned, detected (a dry run) or offline */
+  status: string
+  files?: number
+  new?: number
+  changed?: number
+  unchanged?: number
+  gone?: number
+  offline_days?: number | null
+  identification?: Record<string, unknown> | null
+}
+
+/** What ``exchange scan`` (or ``rescan``) reports; a dry run only detects. */
+export interface ScanReport {
+  folder?: string | null
+  dry_run: boolean
+  environments: EnvironmentReport[]
+  links_skipped?: string[]
+  excluded?: string[]
+  errors?: string[]
+  notes?: string[]
+  cancelled?: boolean
 }
 
 /** This service session's Undo and Redo, as the window's Edit menu shows them. */
@@ -453,6 +650,11 @@ export interface ValidationError {
   type: string
   input?: unknown
   ctx?: Record<string, unknown>
+}
+
+export interface VariantRef {
+  id: string
+  name: string
 }
 
 export interface WordEdit {
@@ -587,6 +789,70 @@ export interface Routes {
     path: {}
     query: {}
     response: Choices
+  }
+  /** Running jobs first, then the latest finished ones (without their reports). */
+  "jobs": {
+    path: {}
+    query: {
+      /** The list's version you have: wait for a newer one */
+      since?: number | null
+      /** Seconds to wait for a change */
+      wait?: number
+    }
+    response: JobList
+  }
+  /** One job with its latest progress, and its report or result once it has ended. */
+  "jobs/{job_id}": {
+    path: {
+      job_id: number
+    }
+    query: {
+      /** The job's version you have: wait for a newer one */
+      since?: number | null
+      /** Seconds to wait for a change */
+      wait?: number
+    }
+    response: Job
+  }
+  /** The environment definitions an environment can be of, for the add-environment wizard. */
+  "environment-types": {
+    path: {}
+    query: {}
+    response: EnvironmentType[]
+  }
+  /** Game, engine and content-library folders found on this PC (Steam, Epic, Unreal projects, Daz, MO2). Reads only where they are, never their files. */
+  "environments/discover": {
+    path: {}
+    query: {}
+    response: FoundSource[]
+  }
+  /** An MO2 instance's profiles and the one it has selected (folder names and its ini only). */
+  "environments/mo2-profiles": {
+    path: {}
+    query: {
+      /** An MO2 instance folder */
+      folder: string
+    }
+    response: Mo2Profiles
+  }
+  /** One environment with its roots and settings. */
+  "environments/{env_id}": {
+    path: {
+      env_id: number
+    }
+    query: {}
+    response: EnvironmentDetail
+  }
+  /** Environments whose roots changed since they were last scanned (``available`` is false without ``watchdog``). A rescan of an environment clears it. */
+  "changes": {
+    path: {}
+    query: {
+      /** The version you have: wait for a newer one */
+      since?: number | null
+      /** Seconds to wait for a change */
+      wait?: number
+    }
+    response: Changes
   }
 }
 
@@ -729,6 +995,52 @@ export interface Posts {
     path: {}
     body: undefined
     response: UndoResult
+  }
+  /** Stop a running job (a scan keeps what it finished). */
+  "jobs/{job_id}/stop": {
+    path: {
+      job_id: number
+    }
+    body: undefined
+    response: Job
+  }
+  /** Detect the environments in a folder, register them and scan them (``exchange scan``). */
+  "jobs/scan": {
+    path: {}
+    body: FolderJob
+    response: Job
+  }
+  /** Which environments a folder holds, without reading any file (``exchange scan --dry-run``); nothing is written. The add-environment wizard's second step. */
+  "jobs/detect": {
+    path: {}
+    body: FolderJob
+    response: Job
+  }
+  /** Rescan known environments (all of them without ``environments``). */
+  "jobs/rescan": {
+    path: {}
+    body: EnvironmentsJob
+    response: Job
+  }
+  /** Classify the library again with the lexicons as they are now ("Apply to library" after lexicon edits); ``regroup`` also regroups hand-installed Daz products (after theme, author or category edits; minutes on a big library). */
+  "jobs/classify": {
+    path: {}
+    body: ClassifyJob
+    response: Job
+  }
+  /** Add environments (the wizard's third step): their roots and settings, and the folders never to index. Nothing is read from them until they are scanned (``/jobs/rescan`` with the ids). */
+  "environments/register": {
+    path: {}
+    body: RegisterEnvironments
+    response: Registered
+  }
+  /** Change an environment's settings: the fields given replace the ones it has (``exchange env config``). Ignore rules apply from the next rescan. */
+  "environments/{env_id}/config": {
+    path: {
+      env_id: number
+    }
+    body: EnvironmentConfig
+    response: ConfigResult
   }
 }
 

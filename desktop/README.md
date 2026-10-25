@@ -59,7 +59,9 @@ sidebar, a virtualized grid of item cards paged from `/api/exchange/dossiers`, s
 inspector. It edits through the core's write API (`/api/exchange/*` passes POST and DELETE): the
 inspector, bulk edits, card menus, drag and drop, collections, with Undo and Redo. Unidentified is
 the window's desk (low confidence, unattached files by folder, suggestions in batches), and
-Definitions › Lexicons edits the lexicons. See `docs/EXCHANGE_PROGRESS.md` (6d, 6f).
+Definitions › Lexicons edits the lexicons. Add environment… and Rescan run the core's jobs (the
+add-environment wizard, scans with a scan bar and Stop, change notices). See
+`docs/EXCHANGE_PROGRESS.md` (6d, 6f, 6h).
 
 ## Projects and the Conversation view
 

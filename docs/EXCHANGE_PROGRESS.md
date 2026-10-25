@@ -8,7 +8,7 @@ the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phas
 first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
 fast capture. Those docs live in the Exchange repository only.
 
-Last updated 2026-10-25. Phase 5, 6c, 6d, 6f part 1 and 7c are merged; 6f part 2 is in review.
+Last updated 2026-10-25. Phase 5, 6c, 6d, 6f and 7c are merged; 6h is in review (on the core's 6g, part 1: cire992/3dExchange#25).
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -57,7 +57,8 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 6d (#9) | Library browsing in the Workspace: sidebar, virtualized item cards, search, read-only inspector | merged |
 | #10 | Fix CI: keep the API-mismatch reason; a Claude Code stand-in in UI tests | merged |
 | 6f, part 1 (#11) | Curation in the Workspace: inspector editing, bulk edit, Undo/Redo, collections, card menus, drag and drop | merged |
-| 6f, part 2 | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | in review |
+| 6f, part 2 (#12) | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | merged |
+| 6h | Environments and scanning: the add-environment wizard, rescans with a scan bar and Stop, change notices, environment settings, Apply to library | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
 
@@ -592,6 +593,69 @@ The rest of the window's curation, on the core's 6e routes (`desk/*`, `suggestio
   because the curation engine applies the file links of the whole root (`apply_file_links` in
   `curation.py`), about 1.5M files, on every such edit. A core change would fix that.
 
+### 6h: environments and scanning
+
+Needs the core's 6g part 1 (the jobs API, cire992/3dExchange#25); the types are generated from its
+schema. As the PySide6 window adds and scans environments:
+
+- **Jobs** (`library/jobs.ts`): the Workspace follows the core's jobs and change notices by version
+  (`/jobs` and `/changes` with `since` and `wait`): each request returns as soon as something
+  changed, so progress arrives without a polling loop. When a job that writes ends, the view reads
+  everything again and the status line says what it did (as the window: "Scan finished · 2
+  environments · 3 products · 1 offline", or why it failed or what stopping kept). Once a scan is
+  past identification (phase 3), the view reads again so products show, as in the window.
+- **The scan bar** under the top bar shows the job that writes: "Scanning <root> · Phase 2 of 3 ·
+  Identification · Grouping products 1,234 / 5,000", a progress bar and Stop. One job writes at a
+  time: Add environment and Rescan wait while one runs.
+- **Rescan:** the top bar's Rescan rescans every environment; once the core noticed changes, it
+  becomes "Rescan changed (N)" and rescans those. Changed environments are marked in the sidebar,
+  and the status line says "Changes detected in …". An environment's menu (right-click) has Rescan
+  and Settings.
+- **The add-environment wizard** (`library/Wizard.tsx`), the window's four steps:
+  - **Sources:** folders typed or picked (Browse, the desktop app's native folder picker; see below),
+    and games and libraries found on this PC (`/environments/discover`), already added ones and ones
+    without a definition greyed out.
+  - **Review detection:** each folder is detected in a worker (`/jobs/detect`, which only lists
+    folders), with its environments: type (changeable), confidence and files. Unticked folders inside
+    an added folder are never indexed. A folder that is not one says so.
+  - **Configure:** one environment per folder, except that every Daz content directory joins one
+    environment. Each has a name, an MO2 profile (read from the instance; chosen for you when the
+    instance selects one), the endpoint folder, the endpoint's visibility and ignore rules. "Needs a
+    name" or "Needs a profile" holds Add and scan back.
+  - **Scan:** registers them (`/environments/register`) and rescans them, with progress. Closing
+    leaves the scan running in the scan bar; Review Unidentified opens the desk.
+- **Environment settings** (`library/EnvironmentSettings.tsx`): MO2 profile, ignore rules, endpoint
+  folder and visibility (`/environments/{id}/config`). An endpoint the window's wizard set as
+  `{mode, value}` is kept unless a folder is typed.
+- **Apply to library** in the lexicon editor runs the core's classify job; it regroups hand-installed
+  Daz products too when category, theme or author words were edited here.
+- **Browse:** the service passes `pick-folder` to the desktop app (`/api/files/pick-folder`), which
+  opens the native folder picker for the Workspace (`src-tauri/src/main.rs`, as `pick-files` does for
+  Chats). In a plain browser nothing answers, so the path field stays.
+- **Tests:** `environments-ui.mjs`, in the real UI against the fake core, whose jobs
+  (`fake-jobs.mjs`) advance on a timer, wait by version, stop and refuse a second writer; detection
+  reads a folder's subfolders, and a `changes.json` in the fake core's folder makes change notices.
+  It covers:
+  - change notices and Rescan changed, the scan bar, and Stop
+  - the wizard: found and typed sources, detection, a bad folder, an untick that is excluded,
+    configure with a missing name, MO2 profiles, scan
+  - environment settings, a rescan from an environment's menu, and Apply to library
+- **With the real core** (#25's branch) on a fresh copy of the scratch scan of the real Daz library.
+  The rescan read the real Daz folder and was stopped; the wizard added scratch copies of the core's
+  test fixtures (its Daz library unticked, since a Daz folder joins the copy's Daz environment).
+
+  | Step | Time |
+  | --- | --- |
+  | Rescan: the scan bar's first progress | 0.87 s |
+  | Stop | 0.08 s |
+  | Found on this PC (146 places, 85 can be added) | 0.83 s |
+  | Detect the fixtures folder | 0.88 s |
+  | Add and scan (MO2 instance and loose files) | 7.0 s |
+  | Apply to library (classify 235,052 assets) | 50 s |
+
+  There were no page errors. During discovery the scanner reports no counts, so the bar says
+  "Discovering files" until phase 2, as the window does.
+
 ## Known gaps and next candidates
 
 - **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
@@ -607,11 +671,11 @@ The rest of the window's curation, on the core's 6e routes (`desk/*`, `suggestio
 - **Edits that link files are slow on a big library:** 3.5 to 7 s on the real Daz scan, because the
   core applies the file links of the whole root after each one (see 6f, part 2).
 - **Library view (6d):**
-  - It does not hear about scans or edits made elsewhere; use Refresh.
+  - It does not hear about scans or edits made elsewhere (the PySide6 window, the CLI); use Refresh.
+    Scans started in the Workspace refresh it themselves.
   - Not yet in the Workspace:
     - the requisitions and "show candidates" parts of the library view (6i)
     - linking files onto an asset from Explorer, Show in folder and Open in app
-    - "Apply to library" for lexicon edits (needs the core's jobs API, 6g)
     - sorting other than by name or type
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.

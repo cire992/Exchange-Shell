@@ -476,6 +476,17 @@ fn main() {
                                 });
                             }
                         },
+                        "pick-folder" => {
+                            if let (Some(window), Some(request_id)) = (app_handle.get_webview_window("workspace"), event["requestId"].as_str()) {
+                                let request_id = request_id.to_owned();
+                                let title = event["title"].as_str().unwrap_or("Choose a folder").to_owned();
+                                std::thread::spawn(move || {
+                                    let path = rfd::FileDialog::new().set_parent(&window).set_title(&title).pick_folder();
+                                    let detail = serde_json::json!({ "requestId": request_id, "path": path });
+                                    let _ = window.eval(format!("window.dispatchEvent(new CustomEvent('mrmak-picked-folder',{{detail:{detail}}}))"));
+                                });
+                            }
+                        },
                         "reveal" => { if let Some(file) = event["path"].as_str() { let _ = external_links::reveal_path(file); } },
                         _ => {}
                     }

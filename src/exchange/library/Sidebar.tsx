@@ -12,18 +12,21 @@ interface Props {
   newCollection: () => void
   collectionMenu: (x: number, y: number, collection: Collection | null) => void
   dropOnCollection: (collection: Collection, uids: string[]) => void
+  changed: Set<number> // environments with changes since their last scan
+  environmentMenu: (x: number, y: number, env: SidebarEnvironment) => void
+  addEnvironment: () => void
 }
 
 const count = (n: number | null | undefined) => n === null || n === undefined ? '' : n.toLocaleString()
 
 // The library, collections, then environments › containers or dossier types, as in the PySide6
 // window's sidebar; then the lexicons (the window's Settings › Lexicons).
-export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection }: Props) {
+export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection, changed, environmentMenu, addEnvironment }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (key: string) => setOpen(previous => ({ ...previous, [key]: !previous[key] }))
   const current = viewKey(view)
   const [over, setOver] = useState<string | null>(null)
-  const item = (target: View, label: string, n?: number | null, extra = '', collection?: Collection) => {
+  const item = (target: View, label: string, n?: number | null, extra = '', collection?: Collection, env?: SidebarEnvironment) => {
     const key = viewKey(target)
     // Manual collections take dropped cards; any collection has a menu.
     const drops = collection && !collection.smart ? {
@@ -38,8 +41,9 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
     } : {}
     return <button type="button" key={key} className={`library-nav-item ${extra} ${current === key ? 'selected' : ''} ${over === key ? 'drop' : ''}`}
       aria-current={current === key ? 'true' : undefined} onClick={() => choose(target)}
-      onContextMenu={collection ? event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, collection) } : undefined} {...drops}>
-      <span>{label}</span><small>{count(n)}</small>
+      onContextMenu={collection ? event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, collection) }
+        : env ? event => { event.preventDefault(); environmentMenu(event.clientX, event.clientY, env) } : undefined} {...drops}>
+      <span>{label}{env && changed.has(env.id) && <em className="library-changed" title="Changed since it was last scanned">changed</em>}</span><small>{count(n)}</small>
     </button>
   }
   const environment = (env: SidebarEnvironment) => {
@@ -49,7 +53,7 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
       <div className="library-env-row">
         <button type="button" className="library-caret" aria-expanded={!!open[key]} aria-label={`${open[key] ? 'Collapse' : 'Expand'} ${env.name}`} onClick={() => toggle(key)}>{open[key] ? '▾' : '▸'}</button>
         <i className={`library-status ${env.status}`} title={env.status === 'online' ? 'Online' : env.status === 'offline' ? 'Offline: its folders are not reachable' : 'Some of its folders are offline'} />
-        {item({ kind: 'environment', id: env.id, name: env.name }, env.name, env.count, 'library-env-name')}
+        {item({ kind: 'environment', id: env.id, name: env.name }, env.name, env.count, 'library-env-name', undefined, env)}
       </div>
       {open[key] && <div className="library-env-children">
         <button type="button" className="library-subhead" aria-expanded={!!open[containers]} onClick={() => toggle(containers)}>{open[containers] ? '▾' : '▸'} Containers <small>{env.containers.length.toLocaleString()}</small></button>
@@ -74,7 +78,8 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
     {error && <p className="library-error" role="alert">{error}</p>}
     {data === null && !error ? <p className="library-muted">Counting the library…</p>
       : data?.environments.length ? data.environments.map(environment)
-        : !error && <p className="library-muted">No environments yet. Add one in the PySide6 window or with <code>exchange scan</code>.</p>}
+        : !error && <><p className="library-muted">No environments yet.</p>
+          <button type="button" className="library-link library-sidebar-add" onClick={addEnvironment}>Add environment…</button></>}
     <h2>Definitions</h2>
     {item({ kind: 'lexicons' }, 'Lexicons')}
   </nav>

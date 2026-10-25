@@ -31,6 +31,7 @@ jobs:
       - run: node desktop/service/exchange/test/library-ui.mjs
       - run: node desktop/service/exchange/test/curation-ui.mjs
       - run: node desktop/service/exchange/test/desk-ui.mjs
+      - run: node desktop/service/exchange/test/environments-ui.mjs
       - run: node desktop/service/exchange/test/checkpoint-ui.mjs
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
