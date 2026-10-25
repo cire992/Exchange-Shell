@@ -8,7 +8,7 @@ the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phas
 first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
 fast capture. Those docs live in the Exchange repository only.
 
-Last updated 2026-10-25. Phase 5, 6c, 6d, 6f and 7c are merged; 6h and 6i (stacked on it) are in review, on the core's 6g (cire992/3dExchange#25, and #26 via #27).
+Last updated 2026-10-25. Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -35,7 +35,9 @@ Then this repository's [AGENTS.md](../AGENTS.md) (working rules) and
 check: Kimi's History restore (see Known gaps). **Phase 6, "Service and
 Workspace" (goal G4), is in progress** across both repositories; its plan and
 decisions are in the core's `docs/PROGRESS.md` (*Phase 6*). This repository does
-6c, 6d, 6f, 6h and 6i, and half of 6j.
+6c, 6d, 6f, 6h and 6i, all merged, and half of 6j. **Next: 6j**, a parity checklist of the
+PySide6 window's features against the Workspace, which the user signs off on a real library before
+the window is removed.
 
 **Phase 7, part 1, "Project homes" (goal G5), is in progress**, planned in the core's
 `docs/PROGRESS.md` (*Phase 7*). Its only chunk here is 7c: the git checkpoint before bypassed
@@ -58,10 +60,13 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | #10 | Fix CI: keep the API-mismatch reason; a Claude Code stand-in in UI tests | merged |
 | 6f, part 1 (#11) | Curation in the Workspace: inspector editing, bulk edit, Undo/Redo, collections, card menus, drag and drop | merged |
 | 6f, part 2 (#12) | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | merged |
-| 6h | Environments and scanning: the add-environment wizard, rescans with a scan bar and Stop, change notices, environment settings, Apply to library | in review |
-| 6i | Requisitions: Requisition to…, the queue, Settings › Processes and Endpoints (stacked on 6h) | in review |
+| 6h (#13) | Environments and scanning: the add-environment wizard, rescans with a scan bar and Stop, change notices, environment settings, Apply to library | merged |
+| 6i (#14) | Requisitions: Requisition to…, the queue, Settings › Processes and Endpoints | merged into 6h's branch; onto `main` with #16 |
+| #15 | Fix a timing flake in the handoff tests (a CI run on #14 failed on it) | in review |
+| #16 | 6i onto `main` (#14 was stacked on #13, and merged into its base branch), with this doc brought up to date | in review |
 
-Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
+Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`,
+except 6i, stacked on 6h.
 
 **What upstream already provides** (checked 2026-10-24): Kimi sessions
 (`--session` resume, `--yolo` bypass), history restore for Claude Code, Codex
@@ -79,8 +84,16 @@ The same as the Exchange repository:
 - **One branch and PR per chunk.** The user reviews and merges. Base the next
   PR on the previous one when they depend on each other. After merging one,
   change the next PR's base to `main` before merging it.
+- **Stacked PRs have landed on the wrong branch twice** (the core's #26 and #14 here): merged soon
+  after their base, while their base was still the previous PR's branch, so their commits reached
+  only that branch and needed a catch-up PR (#27 there, #16 here). GitHub retargets a stacked PR to
+  `main` by itself when its base branch is deleted on merge: turning on *Automatically delete head
+  branches* (Settings › General › Pull Requests, in both repositories) would stop this. Until
+  then, prefer branching from `main` unless a chunk truly needs the previous one.
 - **Don't push more commits to a PR branch after saying it is ready.**
 - **Install nothing without asking.** Don't connect paid providers or voice APIs.
+- **A test that waits a fixed time for background work is a flake waiting to happen** on the CI
+  runner: wait for the state instead (the handoff tests, #15).
 - **Check CI after pushing, not only local runs.** The CI runner has none of the CLIs installed
   (no Claude Code, Codex or Kimi) and runs faster than the dev machine. UI tests that pick a CLI
   in New chat put a stand-in on PATH (`desktop/service/exchange/test/stand-in-clis.mjs`).
