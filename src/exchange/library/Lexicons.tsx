@@ -7,6 +7,8 @@ interface Props {
   revision: number // after any edit (Undo of a word included)
   actions: LibraryActions
   say: (text: string, error?: boolean) => void
+  apply: (regroup: boolean) => void // classify the library again now (a job)
+  busy: boolean // a job writes the library: Apply waits
 }
 
 // What each kind of lexicon does, as the window's Settings › Lexicons says it.
@@ -21,6 +23,7 @@ const ABOUT: Record<string, string> = {
   author: 'Vendors. Scans add the artists in Daz manifests and the vendor folders under data/. A folder named after an author is a vendor folder, and the products below it get that author. Removing a found author keeps scans from adding it back.',
 }
 const UNVALUED = ['ignore', 'index'] // their words stand for nothing but themselves
+const REGROUP = ['category', 'theme', 'author'] // edits to these change how hand-installed Daz products are grouped
 
 const words = (lexicon: LexiconView) => lexicon.terms.reduce((n, t) => n + t.words.length + (t.found?.length || 0), 0)
 
@@ -29,13 +32,15 @@ interface Row { value: string; word: string; from: 'list' | 'found' | 'pattern' 
 // The lexicons that drive tags, variants and grouping (the window's Settings › Lexicons). Each word
 // added or removed is an undoable edit written to the user's copy of the lexicon; it applies to the
 // next scan.
-export default function Lexicons({ revision, actions, say }: Props) {
+export default function Lexicons({ revision, actions, say, apply, busy }: Props) {
   const [lexicons, setLexicons] = useState<LexiconView[] | null>(null)
   const [error, setError] = useState('')
   const [chosen, setChosen] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [value, setValue] = useState('')
   const [word, setWord] = useState('')
+  const [edited, setEdited] = useState<Set<string>>(new Set()) // kinds edited here, for Apply's regroup
+  const done = (kind: string) => setEdited(previous => new Set(previous).add(kind))
 
   useEffect(() => {
     let live = true
@@ -64,10 +69,11 @@ export default function Lexicons({ revision, actions, say }: Props) {
     if (!lexicon) return
     const w = word.trim(), v = valued ? value.trim() : ''
     if (!w || (valued && !v)) { say(valued ? 'Type a word, and the value it stands for (e.g. Food).' : 'Type a word.', true); return }
-    if (await actions.lexiconWord(lexicon.id, v, w, true)) setWord('')
+    if (await actions.lexiconWord(lexicon.id, v, w, true)) { setWord(''); done(lexicon.kind) }
   }
-  const remove = (row: Row) => { if (lexicon) void actions.lexiconWord(lexicon.id, row.value, row.word, false) }
-  const allow = (w: string) => { if (lexicon) void actions.lexiconWord(lexicon.id, w, w, true) }
+  const remove = async (row: Row) => { if (lexicon && await actions.lexiconWord(lexicon.id, row.value, row.word, false)) done(lexicon.kind) }
+  const allow = async (w: string) => { if (lexicon && await actions.lexiconWord(lexicon.id, w, w, true)) done(lexicon.kind) }
+  const regroup = [...edited].some(kind => REGROUP.includes(kind))
 
   return <div className="library-lexicons">
     <div className="library-lexicon-list" role="listbox" aria-label="Lexicons">
@@ -102,7 +108,7 @@ export default function Lexicons({ revision, actions, say }: Props) {
               {valued && <td>{row.value || '—'}</td>}
               <td>{row.word}</td>
               <td>{row.from === 'list' ? 'list' : row.from === 'found' ? 'found by scans' : 'pattern (read-only)'}</td>
-              <td>{row.from !== 'pattern' && <button type="button" className="library-link" aria-label={`Remove ${row.word}`} onClick={() => remove(row)}>Remove</button>}</td>
+              <td>{row.from !== 'pattern' && <button type="button" className="library-link" aria-label={`Remove ${row.word}`} onClick={() => void remove(row)}>Remove</button>}</td>
             </tr>)}
           </tbody>
         </table>
@@ -111,9 +117,13 @@ export default function Lexicons({ revision, actions, say }: Props) {
       {lexicon.generated && !!lexicon.exclude?.length && <section className="library-lexicon-excluded">
         <h4>Removed found words ({lexicon.exclude.length.toLocaleString()}): scans never add these back</h4>
         <div className="library-chips">{lexicon.exclude.map(w => <button key={w} type="button" className="library-chip hidden"
-          title="Allow it again: scans may add it" onClick={() => allow(w)}>{w} ↺</button>)}</div>
+          title="Allow it again: scans may add it" onClick={() => void allow(w)}>{w} ↺</button>)}</div>
       </section>}
-      <p className="library-muted">Edits apply to the next scan; Ctrl+Z undoes them. To re-tag what is already scanned now, run <code>exchange classify</code> (with <code>--regroup</code> after category, theme or author edits).</p>
+      <div className="library-lexicon-apply">
+        <p className="library-muted">Edits apply to the next scan; Ctrl+Z undoes them. Apply to library re-tags what is already scanned now, in the background{regroup ? ', and regroups hand-installed Daz products (minutes on a big library)' : ''}.</p>
+        <button type="button" className="library-button primary" disabled={busy} onClick={() => apply(regroup)}
+          title={busy ? 'Wait for the scan to finish' : 'Classify the library again with the lexicons as they are now'}>Apply to library</button>
+      </div>
     </section>}
   </div>
 }

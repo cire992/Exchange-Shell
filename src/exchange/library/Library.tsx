@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useDesktop } from '../../desktop/client'
-import { exchangeGet, type Brick, type Choices, type Collection, type DossierRef, type Sidebar as SidebarData } from '../api'
+import { exchangeGet, exchangePost, type Brick, type Choices, type Collection, type DossierRef, type Sidebar as SidebarData, type SidebarEnvironment } from '../api'
 import { libraryActions } from './actions'
 import Browser, { type SelectMode } from './Browser'
 import { DialogProvider, useDialogs, type MenuItem } from './Dialogs'
 import { useEditing, useUndoKeys, type Refresh } from './editing'
+import EnvironmentSettings from './EnvironmentSettings'
 import Inspector from './Inspector'
+import { describeFinished, describeProgress, Jobs } from './jobs'
 import Lexicons from './Lexicons'
 import Sidebar from './Sidebar'
 import Suggestions from './Suggestions'
 import Unattached from './Unattached'
+import Wizard from './Wizard'
 import { Pages } from './pages'
 import { plural } from './format'
 import { effectiveGroup, listingQuery, PILES, viewTitle, type Group, type Listing, type Pile, type View } from './views'
@@ -20,7 +23,9 @@ const SEARCH_DELAY = 300
 // The Workspace's library view (Roadmap phases 6d and 6f): the PySide6 window's layout, with its
 // editing. Sidebar | item-card grid | inspector, with the search language on top, Undo and Redo,
 // and a status line saying what the last edit did. Unidentified is the window's desk, with its three
-// piles (low confidence, unattached files, suggestions); Lexicons is its lexicon editor.
+// piles (low confidence, unattached files, suggestions); Lexicons is its lexicon editor. Environments
+// are added (the wizard) and scanned in the core's worker processes (6h): the scan bar follows the
+// running job, and changes the core notices since the last scan offer a rescan.
 export default function Library() {
   return <DialogProvider><LibraryView /></DialogProvider>
 }
@@ -62,6 +67,40 @@ function LibraryView() {
   useUndoKeys(editing)
   const { edit } = editing
   const actions = useMemo(() => libraryActions(edit), [edit])
+
+  // Scans and other long jobs, and change notices, followed while the view is open.
+  const jobs = useMemo(() => new Jobs(), [])
+  useEffect(() => () => jobs.close(), [jobs])
+  useSyncExternalStore(jobs.subscribe, jobs.getVersion)
+  const [wizard, setWizard] = useState(false)
+  const [settingsOf, setSettingsOf] = useState<number | null>(null)
+  const latest = useRef({ refresh, say: editing.say })
+  useEffect(() => { latest.current = { refresh, say: editing.say } })
+  useEffect(() => {
+    const identified = new Set<number>()
+    const progress = jobs.onProgress(job => {
+      // Products can be shown once identification is done (phase 3), as in the window.
+      if (job.writes && job.progress?.phase === 3 && !identified.has(job.id)) { identified.add(job.id); latest.current.refresh('all') }
+    })
+    const finished = jobs.onFinished(job => {
+      if (job.writes) latest.current.refresh('all')
+      const said = describeFinished(job)
+      if (said && job.kind !== 'detect') latest.current.say(said.text, said.error)
+    })
+    return () => { progress(); finished() }
+  }, [jobs])
+  const writer = jobs.writer
+  const changed = useMemo(() => new Set(jobs.changes.environments), [jobs.changes.environments])
+  const startJob = async (start: () => Promise<unknown>) => {
+    try { await start() } catch (error) { editing.say(error instanceof Error ? error.message : String(error), true) }
+  }
+  const rescan = (ids: number[] = []) => void startJob(() => exchangePost('jobs/rescan', { body: { environments: ids } }))
+  const stopJob = () => { if (writer) void startJob(() => exchangePost('jobs/{job_id}/stop', { path: { job_id: writer.id } })) }
+  const applyLexicons = (regroup: boolean) => void startJob(() => exchangePost('jobs/classify', { body: { regroup } }))
+  const environmentMenu = (x: number, y: number, env: SidebarEnvironment) => dialogs.menu(x, y, [
+    { label: `Rescan ${env.name}`, disabled: !!writer, run: () => rescan([env.id]) },
+    { label: 'Settings…', run: () => setSettingsOf(env.id) },
+  ], env.name)
 
   // The sidebar counts the whole library (about 2 s on 235k assets): loaded once, after edits that
   // change counts, and on Refresh.
@@ -219,7 +258,7 @@ function LibraryView() {
   const [one, many] = grouping === 'product' && !listing.parent
     ? ['product or standalone asset', 'products and standalone assets'] : ['asset', 'assets']
   const empty = sidebar && !sidebar.environments.length
-    ? 'No environments yet. Add one in the PySide6 window or with exchange scan.'
+    ? 'No environments yet. Add one with Add environment… above.'
     : listing.view.kind === 'collection' && !listing.search ? 'This collection is empty.' : 'Nothing here matches.'
   const { session, status, busy } = editing
   const shown: Pile | 'lexicons' = listing.view.kind === 'lexicons' ? 'lexicons' : desk ? pile : 'low'
@@ -244,12 +283,25 @@ function LibraryView() {
         <button type="button" className="library-button" disabled={!session.redo || busy} onClick={() => void editing.redo()}
           title={session.redo ? `Redo: ${session.redo} (Ctrl+Y)` : 'Nothing to redo'}>Redo</button>
       </div>
+      <button type="button" className="library-button" onClick={() => setWizard(true)} disabled={!!writer}
+        title={writer ? 'Wait for the scan to finish' : 'Add games, libraries and folders of assets'}>Add environment…</button>
+      <button type="button" className={`library-button ${changed.size ? 'primary' : ''}`} disabled={!!writer}
+        onClick={() => rescan(changed.size ? [...changed] : [])}
+        title={changed.size ? 'Rescan the environments that changed since they were last scanned' : 'Rescan every environment'}>
+        {changed.size ? `Rescan changed (${changed.size})` : 'Rescan'}</button>
       <span className="library-connection" title={exchange.core || undefined}><i aria-hidden="true" />Connected · core {exchange.version} · API v{exchange.api}</span>
       <button type="button" className="library-button" onClick={() => setGeneration(n => n + 1)} title="Read the library again (after a scan or edits in the PySide6 window)">Refresh</button>
     </header>
+    {writer && <div className="library-jobbar" role="status" aria-label="Running job">
+      <span>{describeProgress(writer)}</span>
+      <progress max={writer.progress?.total || undefined} value={writer.progress?.total ? writer.progress.done : undefined} />
+      <button type="button" className="library-button" onClick={stopJob}
+        title={writer.kind === 'classify' ? 'Stop: nothing of it is saved' : 'Stop: everything finished so far is saved'}>Stop</button>
+    </div>}
     <div className={`library-body ${shown === 'lexicons' ? 'wide' : ''}`}>
       <Sidebar data={sidebar} collections={collections} error={side.error || ''} view={listing.view} choose={choose}
         newCollection={() => void newCollection()} collectionMenu={collectionMenu}
+        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)}
         dropOnCollection={(collection, uids) => void actions.members(collection.uid, uids, true)} />
       <section className="library-browser" aria-label="Browser">
         <header className="library-heading">
@@ -270,7 +322,8 @@ function LibraryView() {
               {value === 'product' ? 'By product' : 'By type'}</button>)}
           </div>}
         </header>
-        {shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say} />
+        {shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say}
+          apply={applyLexicons} busy={!!writer} />
           : shown === 'files' ? <Unattached key={generation} revision={revisions.side} actions={actions} show={show} />
             : shown === 'suggestions' ? <Suggestions key={generation} revision={revisions.edits} actions={actions} show={show} />
               : <Browser key={key} pages={pages} selected={selectedUids} focus={selected.focus} empty={empty}
@@ -279,7 +332,10 @@ function LibraryView() {
       {shown !== 'lexicons' && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual} />}
     </div>
     <footer className={`library-statusline ${status?.error ? 'error' : ''}`} role="status" aria-live="polite">
-      {status?.text || 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.'}
+      {status?.text || (changed.size && sidebar ? `Changes detected in ${sidebar.environments.filter(e => changed.has(e.id)).map(e => e.name).join(', ')} · Rescan changed when you’re ready`
+        : 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.')}
     </footer>
+    {wizard && <Wizard jobs={jobs} close={() => setWizard(false)} reviewUnidentified={() => choose({ kind: 'unidentified' })} />}
+    {settingsOf !== null && <EnvironmentSettings id={settingsOf} close={() => setSettingsOf(null)} say={editing.say} />}
   </div>
 }

@@ -11,8 +11,11 @@
 // before it, which Undo restores (and Redo the one after). Setting a field to "__busy__" answers
 // like a library a scan is writing to (503).
 
-const daz = { id: 1, name: 'Daz Studio', type_id: 'daz_studio' };
-const loose = { id: 2, name: 'Loose files', type_id: 'loose_files' };
+const daz = { id: 1, name: 'Daz Studio', type_id: 'daz_studio', roots: [{ id: 1, path: 'D:/Library', status: 'online' }], user_config: { visibility: 'personal' }, layer_config: {} };
+const loose = { id: 2, name: 'Loose files', type_id: 'loose_files', roots: [{ id: 2, path: 'E:/Sketchfab', status: 'online' }, { id: 3, path: 'F:/Old drive', status: 'offline' }], user_config: {}, layer_config: {} };
+// Environments, with those registered through the API (fake-jobs.mjs) after them. Registering is
+// not an edit: Undo does not take them away.
+const envs = [daz, loose];
 const containers = { 11: { id: 11, name: 'My Library', kind: 'content_directory', env: daz }, 12: { id: 12, name: 'Daz Connect', kind: 'content_directory', env: daz }, 21: { id: 21, name: 'Sketchfab', kind: 'folder', env: loose } };
 const typeNames = { product: 'Product', daz_wearable: 'Daz wearable', daz_morph: 'Daz morph', static_mesh: 'Static mesh' };
 const BUSY = 'The library is busy: a scan is writing to it. Try again when the scan finishes.';
@@ -99,11 +102,59 @@ export function sidebar() {
   const shown = lib.dossiers.filter(d => live(d) && !d.dismissed);
   const environment = env => {
     const own = shown.filter(d => envOf(d).id === env.id);
-    return { id: env.id, name: env.name, type_id: env.type_id, status: env.id === 2 ? 'partial' : 'online', count: own.length, roots: [],
+    return { id: env.id, name: env.name, type_id: env.type_id, status: envStatus(env), count: own.length, roots: env.roots,
       containers: Object.values(containers).filter(c => c.env.id === env.id).map(c => ({ id: c.id, name: c.name, kind: c.kind, count: own.filter(d => d.container === c.id).length })),
       types: [...new Set(own.map(d => d.type_id))].sort().map(type_id => ({ type_id, name: typeNames[type_id], count: own.filter(d => d.type_id === type_id).length })) };
   };
-  return { all: shown.length, unidentified_dossiers: shown.filter(unidentified).length, unattached_files: unattached(0).length, environments: [environment(daz), environment(loose)] };
+  return { all: shown.length, unidentified_dossiers: shown.filter(unidentified).length, unattached_files: unattached(0).length, environments: envs.map(environment) };
+}
+
+const envStatus = env => env.roots.every(r => r.status === 'online') ? 'online' : env.roots.every(r => r.status === 'offline') ? 'offline' : 'partial';
+const envView = env => ({ id: env.id, uid: `env-${env.id}`, name: env.name, type_id: env.type_id, status: envStatus(env), added_at: '2026-10-24',
+  last_scanned_at: env.last_scanned_at || null, roots: env.roots });
+export const environments = () => envs.map(envView);
+export const environment = id => { const env = envs.find(e => e.id === id); return env && { ...envView(env), user_config: env.user_config, layer_config: env.layer_config }; };
+export const rootOwner = folder => envs.find(e => e.roots.some(r => r.path.toLowerCase() === folder.toLowerCase()));
+
+// A root joins an environment of its type when the type gathers every root (Daz), as the core's
+// register_root does; otherwise it is a new environment.
+export function registerRoot(type_id, folder, name, config) {
+  const known = rootOwner(folder);
+  if (known) { Object.assign(known.user_config, config); return known; }
+  let env = type_id === 'daz_studio' && envs.find(e => e.type_id === 'daz_studio');
+  if (!env) {
+    env = { id: Math.max(...envs.map(e => e.id)) + 1, name, type_id, roots: [], user_config: {}, layer_config: type_id === 'skyrim_se' ? { profiles: ['Default', 'Survival'] } : {} };
+    envs.push(env);
+    containers[100 + env.id] = { id: 100 + env.id, name: name, kind: 'folder', env };
+  }
+  env.roots.push({ id: Math.max(...envs.flatMap(e => e.roots.map(r => r.id))) + 1, path: folder, status: 'online' });
+  Object.assign(env.user_config, config);
+  return env;
+}
+
+// What a scan of a registered environment finds: three meshes in its container.
+export function scanned(id) {
+  const env = envs.find(e => e.id === id);
+  if (!env) return;
+  env.last_scanned_at = new Date().toISOString();
+  const container = Object.values(containers).find(c => c.env === env);
+  if (!container || lib.dossiers.some(d => d.container === container.id)) return;
+  for (let n = 1; n <= 3; n++) {
+    const d = { uid: `scanned-${id}-${n}`, name: `${env.name} Crate ${n}`, type_id: 'static_mesh', confidence: 0.8, container: container.id, parent: null,
+      acquired: env.last_scanned_at, format: '.obj', fields: {}, tagsAdd: [], tagsRemove: [], dismissed: false, alias: null, variants: [], history: [] };
+    d.scannedName = d.name; d.scannedType = d.type_id; d.scannedParent = null;
+    lib.dossiers.push(d);
+  }
+  index();
+}
+
+export function configure(id, given) {
+  const env = envs.find(e => e.id === id);
+  if (!env) return null;
+  for (const [key, value] of Object.entries(given)) {
+    if (value === null || (Array.isArray(value) && !value.length)) delete env.user_config[key]; else env.user_config[key] = value;
+  }
+  return env.user_config;
 }
 
 // The Unidentified desk ---------------------------------------------------------------------------

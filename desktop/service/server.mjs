@@ -198,6 +198,11 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
           native({ type: 'pick-files', window: 'chats', requestId: data.requestId });
           return json(response, 200, { requested: true });
         }
+        if (method === 'POST' && url.pathname === '/api/files/pick-folder') {
+          if (typeof data.requestId !== 'string' || !/^[a-f\d-]{36}$/i.test(data.requestId)) throw new Error('Invalid folder picker request.');
+          native({ type: 'pick-folder', window: 'workspace', requestId: data.requestId, title: String(data.title || 'Choose a folder').slice(0, 200) });
+          return json(response, 200, { requested: true });
+        }
         if (method === 'POST' && url.pathname === '/api/files/drag') {
           const paths = await dragFiles(data.paths);
           native({ type: 'drag-files', window: 'workspace', paths });

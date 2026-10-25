@@ -57,6 +57,24 @@ export function pickFiles(): Promise<string[]> {
     api('/files/pick', { requestId }).catch(error => { cleanup(); reject(error) })
   })
 }
+// The Workspace's native folder picker (the add-environment wizard's Browse). Resolves to the
+// folder, or null when cancelled; outside the desktop app nothing answers, so callers keep a typed
+// path too.
+export function pickFolder(title: string): Promise<string | null> {
+  const requestId = crypto.randomUUID()
+  return new Promise((resolve, reject) => {
+    const cleanup = () => { window.removeEventListener('mrmak-picked-folder', picked); window.removeEventListener('pagehide', closed) }
+    const picked = (event: Event) => {
+      const detail = (event as CustomEvent<{ requestId: string; path: string | null }>).detail
+      if (detail?.requestId !== requestId) return
+      cleanup(); resolve(detail.path)
+    }
+    const closed = () => { cleanup(); reject(new Error('The folder picker window was closed.')) }
+    window.addEventListener('mrmak-picked-folder', picked)
+    window.addEventListener('pagehide', closed)
+    api('/files/pick-folder', { requestId, title }).catch(error => { cleanup(); reject(error) })
+  })
+}
 export async function uploadImage(file: File): Promise<{ path: string; name: string }> {
   const response = await fetch('/api/attachments', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name || 'Screenshot.png') }, body: file })
   const value = await response.json()
