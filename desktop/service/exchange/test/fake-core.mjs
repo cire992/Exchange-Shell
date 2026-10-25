@@ -8,6 +8,7 @@ import http from 'node:http';
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { excluded, getJobs, postJobs } from './fake-jobs.mjs';
+import { deleteRequisitions, getRequisitions, postRequisitions } from './fake-requisitions.mjs';
 import { choices, desk, detail, hasThumbnail, history, lexicons, list, listCollections, post, remove, sessionState, sidebar, suggestions } from './fake-library.mjs';
 
 const token = process.env.EXCHANGE_SERVICE_TOKEN;
@@ -29,16 +30,21 @@ const server = http.createServer((request, response) => {
     request.on('data', chunk => { raw += chunk; });
     request.on('end', () => {
       const route = url.pathname.slice('/api/v1/'.length), data = raw ? JSON.parse(raw) : {};
-      const { status, body } = postJobs(route, data) || post(route, data);
+      const { status, body } = postJobs(route, data) || postRequisitions(route, data) || post(route, data);
       send(status, body);
     });
     return;
   }
-  if (library && request.method === 'DELETE' && url.pathname.startsWith('/api/v1/')) { const { status, body } = remove(url.pathname.slice('/api/v1/'.length)); return send(status, body); }
+  if (library && request.method === 'DELETE' && url.pathname.startsWith('/api/v1/')) {
+    const route = url.pathname.slice('/api/v1/'.length);
+    const { status, body } = deleteRequisitions(route) || remove(route);
+    return send(status, body);
+  }
   if (request.method !== 'GET') return send(405, { detail: 'Method not allowed' });
   if (library) {
     if (url.pathname === '/api/v1/test/excluded') return send(200, excluded);
     if (getJobs(url.pathname.slice('/api/v1/'.length), url.searchParams, send)) return;
+    if (getRequisitions(url.pathname.slice('/api/v1/'.length), url.searchParams, send)) return;
     if (url.pathname === '/api/v1/session') return send(200, sessionState());
     if (url.pathname === '/api/v1/choices') return send(200, choices());
     if (url.pathname === '/api/v1/history') return send(200, history());

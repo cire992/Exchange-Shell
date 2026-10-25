@@ -15,13 +15,14 @@ interface Props {
   changed: Set<number> // environments with changes since their last scan
   environmentMenu: (x: number, y: number, env: SidebarEnvironment) => void
   addEnvironment: () => void
+  queue: number | null // requisitions waiting, running or needing attention
 }
 
 const count = (n: number | null | undefined) => n === null || n === undefined ? '' : n.toLocaleString()
 
 // The library, collections, then environments › containers or dossier types, as in the PySide6
-// window's sidebar; then the lexicons (the window's Settings › Lexicons).
-export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection, changed, environmentMenu, addEnvironment }: Props) {
+// window's sidebar, with the requisition queue; then Settings: lexicons, processes and endpoints.
+export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection, changed, environmentMenu, addEnvironment, queue }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (key: string) => setOpen(previous => ({ ...previous, [key]: !previous[key] }))
   const current = viewKey(view)
@@ -67,6 +68,7 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
     <h2>Library</h2>
     {item({ kind: 'all' }, 'All assets', data?.all)}
     {item({ kind: 'unidentified' }, 'Unidentified', data?.unidentified_dossiers, 'warn')}
+    {item({ kind: 'requisitions' }, 'Requisitions', queue)}
     <div className="library-sidebar-head" onContextMenu={event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, null) }}>
       <h2>Collections</h2>
       <button type="button" className="library-icon-button" title="New collection (right-click for a smart one from the search)" aria-label="New collection" onClick={newCollection}>+</button>
@@ -80,7 +82,9 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
       : data?.environments.length ? data.environments.map(environment)
         : !error && <><p className="library-muted">No environments yet.</p>
           <button type="button" className="library-link library-sidebar-add" onClick={addEnvironment}>Add environment…</button></>}
-    <h2>Definitions</h2>
+    <h2>Settings</h2>
     {item({ kind: 'lexicons' }, 'Lexicons')}
+    {item({ kind: 'processes' }, 'Processes')}
+    {item({ kind: 'endpoints' }, 'Endpoints')}
   </nav>
 }

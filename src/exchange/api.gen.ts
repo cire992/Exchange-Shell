@@ -172,6 +172,26 @@ export interface EditResult {
   session: Session
 }
 
+export interface EndpointRef {
+  folder: string
+  root: string
+  visibility: string
+  label: string
+}
+
+export interface EndpointView {
+  environment_id: number
+  environment: string
+  type_id: string
+  /** Where output goes (null when it has no online folder) */
+  folder?: string | null
+  label?: string | null
+  /** The user chose the folder (otherwise the type's default) */
+  custom: boolean
+  visibility: string
+  problem?: string | null
+}
+
 export interface Entry {
   id: number
   container: string
@@ -355,6 +375,10 @@ export interface HistoryItem {
   undoable?: boolean
 }
 
+export interface HoldRequest {
+  held?: boolean
+}
+
 export interface IgnoreEdit {
   environment: number
   folder: string
@@ -363,7 +387,7 @@ export interface IgnoreEdit {
 
 export interface Job {
   id: number
-  kind: "scan" | "detect" | "rescan" | "classify"
+  kind: "scan" | "detect" | "rescan" | "classify" | "requisitions" | "remove"
   label: string
   state: "running" | "done" | "failed" | "stopped"
   /** It writes the library: one such job runs at a time */
@@ -379,7 +403,7 @@ export interface Job {
   version: number
   /** A scan, detection or rescan's report, once it has ended */
   report?: ScanReport | null
-  /** Another job's result (classify: counts), once ended */
+  /** Another job's result, once it has ended (classify: counts; requisitions: what ran) */
   result?: Record<string, unknown> | null
 }
 
@@ -439,10 +463,34 @@ export interface Mo2Profiles {
   selected?: string | null
 }
 
+export interface MoveRequest {
+  /** 1 is first */
+  position: number
+}
+
+export interface OptionForm {
+  process: string
+  name: string
+  /** What the plan would use */
+  values: Record<string, unknown>
+  parameters: ParameterView[]
+}
+
 export interface Page {
   items: Brick[]
   total: number
   offset: number
+}
+
+export interface ParameterView {
+  id: string
+  type: "str" | "int" | "float" | "bool" | "choice" | "path"
+  default?: unknown
+  label: string
+  help?: string
+  choices?: string[]
+  min?: number | null
+  max?: number | null
 }
 
 export interface ParentEdit {
@@ -455,8 +503,119 @@ export interface ParentRevert {
   uid: string
 }
 
+export interface PlanItemView {
+  dossier_uid: string
+  name: string
+  type_id: string
+  source_entry_id?: number | null
+  /** Where the source entry is, in words */
+  source: string
+  route: "convert" | "copy" | "none"
+  processes: string[]
+  process_names: string[]
+  params: Record<string, Record<string, unknown>>
+  include: boolean
+  problems: string[]
+}
+
+export interface PlanRequest {
+  /** Assets or products; several are planned with the same options */
+  uids: string[]
+  /** The target environment */
+  environment: number
+  /** A chain from /requisitions/routes; null is automatic */
+  processes?: string[] | null
+  /** Option values by process; they win over the preset's */
+  options?: Record<string, Record<string, unknown>>
+  /** Start from a preset; null is the options last used with each process */
+  preset?: string | null
+  /** Write here instead of the environment's endpoint */
+  endpoint_folder?: string | null
+  on_collision?: "ask" | "overwrite" | "rename" | "skip"
+  /** Items (asset uids) left out */
+  excluded?: string[]
+  /** The requisition's name, for one asset */
+  name?: string | null
+}
+
+export interface PlanResult {
+  plans: PlanView[]
+  /** Assets that could not be planned, and warnings */
+  problems: string[]
+  /** One per process in the included items */
+  forms: OptionForm[]
+  included: number
+}
+
+export interface PlanView {
+  name: string
+  environment_id: number
+  on_collision: string
+  endpoint: EndpointRef
+  warnings: string[]
+  items: PlanItemView[]
+}
+
+export interface PrerequisiteView {
+  id: string
+  label: string
+  ok: boolean
+  /** The path found, or how to fix it */
+  detail: string
+  /** The shared tool id it needs a path for (blender, texconv...) */
+  tool?: string | null
+}
+
+export interface PresetSave {
+  name: string
+  options: Record<string, Record<string, unknown>>
+  description?: string
+  environment?: string | null
+}
+
+export interface PresetView {
+  name: string
+  description?: string
+  /** The environment type it was made for */
+  environment?: string | null
+  /** From a process package: read-only */
+  shipped: boolean
+  processes: string[]
+  /** Option values by process */
+  options: Record<string, Record<string, unknown>>
+}
+
 export interface Problem {
   detail: string
+}
+
+export interface ProcessList {
+  processes: ProcessView[]
+  /** Packages that could not be read, and why */
+  problems: string[]
+}
+
+export interface ProcessView {
+  id: string
+  name: string
+  version: string
+  author: string
+  description: string
+  builtin: boolean
+  trusted: boolean
+  /** Only ready ones are offered */
+  state: "ready" | "not trusted" | "needs setup"
+  path: string
+  input_types: string[]
+  input_tags: string[]
+  output_environment: string
+  output_dossier_type: string
+  prerequisites: PrerequisiteView[]
+  /** What is wrong with a trusted package's chain */
+  problems: string[]
+  /** What trusting it lets it do, to show before asking */
+  trust: string[]
+  parameters: ParameterView[]
 }
 
 export interface ProductEdit {
@@ -466,7 +625,7 @@ export interface ProductEdit {
   folder?: DeskFolder | null
 }
 
-/** A worker's latest progress line (a scan's: phase 1 discovery, 2 identification, 3 enrichment). */
+/** A worker's latest progress line: a scan's (phase 1 discovery, 2 identification, 3 enrichment), or a requisition run's (requisition, item, step and message). */
 export interface Progress {
   phase?: number | null
   environment?: string | null
@@ -474,11 +633,20 @@ export interface Progress {
   step?: string | null
   done?: number
   total?: number
+  /** A requisition run: the requisition's name */
+  requisition?: string | null
+  /** A requisition run: the asset it is converting */
+  item?: string | null
+  message?: string | null
 }
 
 export interface PromoteEdit {
   uid: string
   variant: string
+}
+
+export interface Queued {
+  ids: number[]
 }
 
 export interface RegisterEnvironments {
@@ -495,6 +663,76 @@ export interface RegisteredEnvironment {
   id: number
   name: string
   type_id: string
+}
+
+export interface RemoveRequest {
+  requisition: number
+}
+
+export interface RequisitionDetail {
+  id: number
+  uid: string
+  name: string
+  state: string
+  position: number
+  environment_id: number
+  endpoint: EndpointRef
+  on_collision: string
+  message?: string | null
+  replaces?: number | null
+  created_at: string
+  started_at?: string | null
+  finished_at?: string | null
+  items: RequisitionItem[]
+  writes: RequisitionWrite[]
+}
+
+export interface RequisitionItem {
+  id: number
+  dossier_uid: string
+  name: string
+  source_entry_id?: number | null
+  /** [{"id", "version"}] */
+  processes: Record<string, unknown>[]
+  params: Record<string, Record<string, unknown>>
+  include: number
+  state: string
+  message?: string | null
+  outputs: Record<string, unknown>[]
+}
+
+export interface RequisitionRow {
+  id: number
+  uid: string
+  name: string
+  state: "queued" | "held" | "running" | "needs_attention" | "fulfilled" | "partially_fulfilled" | "failed" | "stale" | "removed" | "replaced"
+  position: number
+  environment_id: number
+  environment: string
+  on_collision: string
+  message?: string | null
+  replaces?: number | null
+  created_at: string
+  started_at?: string | null
+  finished_at?: string | null
+  /** Included items */
+  items: number
+  done: number
+}
+
+export interface RequisitionWrite {
+  id: number
+  item_id?: number | null
+  path: string
+  action: "created" | "overwritten" | "sidecar"
+  recycled_to?: string | null
+  written_at: string
+  removed_at?: string | null
+}
+
+export interface ResumeRequest {
+  /** How to settle collisions now; null keeps the requisition's */
+  on_collision?: "ask" | "overwrite" | "rename" | "skip" | null
 }
 
 export interface Root {
@@ -525,6 +763,22 @@ export interface RootReport {
   gone?: number
   offline_days?: number | null
   identification?: Record<string, unknown> | null
+}
+
+export interface RouteChoice {
+  processes: string[]
+  route: "convert" | "copy"
+  label: string
+}
+
+export interface RoutesRequest {
+  uids: string[]
+  environment: number
+}
+
+export interface RunRequest {
+  /** Only these requisitions; none is the whole queue */
+  ids?: number[] | null
 }
 
 /** What ``exchange scan`` (or ``rescan``) reports; a dry run only detects. */
@@ -573,6 +827,11 @@ export interface SplitEdit {
   name?: string | null
 }
 
+export interface StaleRequisition {
+  id: number
+  why: string
+}
+
 export interface Suggestion {
   id: number
   kind: string
@@ -619,6 +878,13 @@ export interface TagSource {
   sources: string[]
   confidence: number
   user?: "add" | "remove" | null
+}
+
+export interface ToolPath {
+  /** A tool id, e.g. blender */
+  tool: string
+  /** The executable; null forgets it */
+  path?: string | null
 }
 
 export interface TypeChoice {
@@ -854,6 +1120,50 @@ export interface Routes {
     }
     response: Changes
   }
+  /** Every process package: trusted or not, its prerequisites (green or red with how to fix them), its options, and what trusting it allows. Only ready ones are offered for requisitions. */
+  "processes": {
+    path: {}
+    query: {}
+    response: ProcessList
+  }
+  /** Where the user said external tools are (Blender, texconv, Daz Studio...). */
+  "tools": {
+    path: {}
+    query: {}
+    response: Record<string, string>
+  }
+  /** Saved option sets: those shipped in packages, then the user's. */
+  "presets": {
+    path: {}
+    query: {}
+    response: PresetView[]
+  }
+  /** The options last queued with each process. */
+  "presets/last-used": {
+    path: {}
+    query: {}
+    response: Record<string, Record<string, unknown>>
+  }
+  /** Where requisitions write in each environment (Settings › Endpoints): the folder, whether the user chose it, and its visibility. Change them with ``/environments/{id}/config``. */
+  "endpoints": {
+    path: {}
+    query: {}
+    response: EndpointView[]
+  }
+  /** The queue (waiting or running, in order), then finished requisitions, newest first. */
+  "requisitions": {
+    path: {}
+    query: {}
+    response: RequisitionRow[]
+  }
+  /** One requisition: its items (with outputs) and every file it wrote. */
+  "requisitions/{requisition_id}": {
+    path: {
+      requisition_id: number
+    }
+    query: {}
+    response: RequisitionDetail
+  }
 }
 
 /** The core's POST routes (edits), proxied as POST /api/exchange/<route> with a JSON body. */
@@ -1042,6 +1352,100 @@ export interface Posts {
     body: EnvironmentConfig
     response: ConfigResult
   }
+  /** Trust a package as it is now: it may then run its own code. Ask the user first. */
+  "processes/{process_id}/trust": {
+    path: {
+      process_id: string
+    }
+    body: undefined
+    response: ProcessView
+  }
+  /** Copy a package folder into the user's processes folder; it stays untrusted until trusted. */
+  "processes/install": {
+    path: {}
+    body: FolderJob
+    response: ProcessView
+  }
+  /** Set a tool's path (null forgets it: manifests' likely paths are tried again). */
+  "tools": {
+    path: {}
+    body: ToolPath
+    response: Record<string, string>
+  }
+  /** Save options (by process) under a name; a user preset of that name is replaced. */
+  "presets": {
+    path: {}
+    body: PresetSave
+    response: PresetView
+  }
+  /** The chains of processes that take these assets (and products' children) into an environment: the dialog's route list (besides Automatic). */
+  "requisitions/routes": {
+    path: {}
+    body: RoutesRequest
+    response: RouteChoice[]
+  }
+  /** Plan getting assets into an environment (nothing is written): per asset, the items (a product's children too), each with its process chain, source and problems; the option forms for the processes in it; and warnings. */
+  "requisitions/plan": {
+    path: {}
+    body: PlanRequest
+    response: PlanResult
+  }
+  /** Plan this request again and queue every plan with something included; the options become each process's last used. Run them with ``/jobs/requisitions``. */
+  "requisitions/queue": {
+    path: {}
+    body: PlanRequest
+    response: Queued
+  }
+  /** Keep a queued requisition from running (``held`` false lets it run again). */
+  "requisitions/{requisition_id}/hold": {
+    path: {
+      requisition_id: number
+    }
+    body: HoldRequest
+    response: RequisitionDetail
+  }
+  /** Put a waiting requisition at a place in the queue (1 is first). */
+  "requisitions/{requisition_id}/move": {
+    path: {
+      requisition_id: number
+    }
+    body: MoveRequest
+    response: RequisitionDetail
+  }
+  /** Queue it again after a checkpoint or a collision (with how to settle collisions); failed items are retried. Run the queue to continue. */
+  "requisitions/{requisition_id}/resume": {
+    path: {
+      requisition_id: number
+    }
+    body: ResumeRequest
+    response: RequisitionDetail
+  }
+  /** Queue a fulfilled or stale requisition again with the current processes, overwriting its output; returns the new requisition. */
+  "requisitions/{requisition_id}/rebuild": {
+    path: {
+      requisition_id: number
+    }
+    body: undefined
+    response: RequisitionDetail
+  }
+  /** Mark fulfilled requisitions whose sources or processes changed as stale; the ones newly found. */
+  "requisitions/check-stale": {
+    path: {}
+    body: undefined
+    response: StaleRequisition[]
+  }
+  /** Run the queue (or some requisitions) in a worker process (``exchange requisition run``). */
+  "jobs/requisitions": {
+    path: {}
+    body: RunRequest
+    response: Job
+  }
+  /** Move what a requisition wrote to the recycle folder and put back what it overwrote, then rescan the folders it wrote to (``exchange requisition remove``). */
+  "jobs/remove-output": {
+    path: {}
+    body: RemoveRequest
+    response: Job
+  }
 }
 
 /** The core's DELETE routes, proxied as DELETE /api/exchange/<route>. */
@@ -1053,5 +1457,13 @@ export interface Deletes {
     }
     body: undefined
     response: EditResult
+  }
+  /** Remove Preset */
+  "presets/{name}": {
+    path: {
+      name: string
+    }
+    body: undefined
+    response: PresetView[]
   }
 }
