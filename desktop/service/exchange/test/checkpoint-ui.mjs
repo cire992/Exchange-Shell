@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createService } from '../../server.mjs';
 import { launchBrowser } from '../../test/browser.mjs';
+import { standInClis } from './stand-in-clis.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../../..');
@@ -25,6 +26,7 @@ await mkdir(path.join(repo, '.mrmak'));
 await writeFile(path.join(repo, '.mrmak/sessions.json'), JSON.stringify([{ id: 'saved', name: 'Saved bypass', bypass: true, group: null, tabOrder: 0, agent: 'claude', cwd: home, nativeId: null, hasConversation: false, open: true, pinned: false, status: 'stopped', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lastInputAt: null, lastOutputAt: null, cols: 90, rows: 32, attention: false, activity: 'idle', unread: false, completionVersion: 0, tabColor: null }]));
 await writeFile(path.join(repo, '.mrmak/settings.json'), JSON.stringify({ defaultAgent: 'claude', selectedId: 'saved', exchangeCore: core }));
 await mode('fail');
+await standInClis(path.join(repo, 'stand-in-clis')); // New chat picks Claude Code
 let service, browser;
 try {
   service = await createService({ repo, uiDir: path.join(root, 'dist'), mcpOptions: { home: repo, env: {} }, restoreSessions: true, checkpointCommand: fake });

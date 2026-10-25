@@ -76,6 +76,11 @@ The same as the Exchange repository:
   change the next PR's base to `main` before merging it.
 - **Don't push more commits to a PR branch after saying it is ready.**
 - **Install nothing without asking.** Don't connect paid providers or voice APIs.
+- **Check CI after pushing, not only local runs.** The CI runner has none of the CLIs installed
+  (no Claude Code, Codex or Kimi) and runs faster than the dev machine. UI tests that pick a CLI
+  in New chat put a stand-in on PATH (`desktop/service/exchange/test/stand-in-clis.mjs`).
+  CI failed from 5d to 6d unnoticed: these tests assumed Claude Code, and a race in `core.mjs`
+  only showed on the faster runner.
 
 ### Staying mergeable with upstream
 

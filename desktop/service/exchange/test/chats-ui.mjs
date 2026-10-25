@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createService } from '../../server.mjs';
 import { launchBrowser } from '../../test/browser.mjs';
+import { standInClis } from './stand-in-clis.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 await mkdir(path.join(root, '.cache'), { recursive: true });
@@ -23,6 +24,7 @@ await writeFile(path.join(repo, '.mrmak/sessions.json'), JSON.stringify([
 ]));
 // A saved bypass default from upstream Mr. Mak must not survive or apply.
 await writeFile(path.join(repo, '.mrmak/settings.json'), JSON.stringify({ defaultAgent: 'claude', defaultBypass: true, selectedId: 'careful' }));
+await standInClis(path.join(repo, 'stand-in-clis')); // New chat picks Claude Code
 let service, browser;
 try {
   service = await createService({ repo, uiDir: path.join(root, 'dist'), mcpOptions: { home: repo, env: {} } });

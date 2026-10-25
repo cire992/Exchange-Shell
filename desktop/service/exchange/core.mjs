@@ -86,6 +86,7 @@ export class ExchangeCore extends EventEmitter {
     const tail = () => stderr.trim().split(/\r?\n/).slice(-6).join('\n');
     return new Promise(resolve => {
       let settled = false;
+      let refused = false; // closed by us for speaking another API: its exit must not replace why
       const settle = () => { if (!settled) { settled = true; clearTimeout(timer); resolve(this.view); } };
       const timer = setTimeout(() => {
         if (settled) return;
@@ -99,7 +100,7 @@ export class ExchangeCore extends EventEmitter {
         if (ready?.event !== 'ready' || typeof ready.url !== 'string' || !/^http:\/\/127\.0\.0\.1:\d+$/.test(ready.url)) return;
         if (ready.api !== API_VERSION) {
           this.set({ status: 'error', message: `This shell speaks API v${API_VERSION}; the core offers v${ready.api}. Update the shell or the core.` });
-          child.stdin.end(); settle(); return;
+          refused = true; child.stdin.end(); settle(); return;
         }
         this.url = ready.url;
         this.set({ status: 'ready', message: 'Connected', version: ready.version || null, api: ready.api });
@@ -112,7 +113,7 @@ export class ExchangeCore extends EventEmitter {
       child.on('exit', code => {
         if (this.child !== child) return;
         this.child = null; this.url = null;
-        if (this.stopping) return;
+        if (this.stopping || refused) return;
         const wasReady = this.state.status === 'ready';
         // A core from before Roadmap phase 6b has no serve command at all.
         const old = /invalid choice: 'serve'/.test(stderr);
