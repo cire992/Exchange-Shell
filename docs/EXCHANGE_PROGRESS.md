@@ -8,7 +8,7 @@ the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phas
 first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
 fast capture. Those docs live in the Exchange repository only.
 
-Last updated 2026-10-24, during phase 7. Phase 5 and 6c are merged; 7c is in review.
+Last updated 2026-10-24. Phase 5, 6c and 7c are merged; 6d is in review.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -53,7 +53,8 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 5c (#5) | Remove the persona and its card registry; Exchange branding; a placeholder Workspace window under `src/exchange/` | merged |
 | 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | merged |
 | 6c (#7) | The shell starts the Exchange core's service and proxies it; its status and settings in the Workspace | merged |
-| 7c | A git checkpoint of the project home before every launch of a bypassed chat | in review |
+| 7c (#8) | A git checkpoint of the project home before every launch of a bypassed chat | merged |
+| 6d | Library browsing in the Workspace: sidebar, virtualized item cards, search, read-only inspector | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
 
@@ -363,6 +364,74 @@ Needs the core's 7a (`exchange project checkpoint`, cire992/3dExchange#21).
 - **For the user's own project homes:** once 7a is merged and pulled, set the git identity once:
   `exchange project config --git-name … --git-email …` (this machine has no global git identity).
 
+### 6d: library browsing in the Workspace
+
+Meets G4 ("the web Workspace browses the library") once merged. Everything is read-only; editing
+is 6f.
+
+- **When it shows:** once the Exchange service is connected, the Workspace window
+  (`src/exchange/Workspace.tsx`) shows the library (`src/exchange/library/`). Otherwise it shows
+  the placeholder with the service panel, Retry and the settings hint.
+- **Layout:** the PySide6 window's. Search on top, then sidebar | item-card grid | inspector. A
+  narrow window puts the inspector below.
+- **Sidebar:**
+  - All assets and Unidentified, with counts
+  - collections (smart ones marked ⌕)
+  - environments with a status dot, each expanding into Containers and Dossier types
+
+  It is loaded once, because the sidebar takes 1-2 s on the real library. **Refresh** reads the
+  library again.
+- **Grid:**
+  - **Virtualized** with `@tanstack/react-virtual` 3.14.14, the library chosen in the phase 6 plan:
+    only the rows in view are rendered. Pages of 200 (`library/pages.ts`) are fetched as they come
+    into view, so jumping to the end of 235k assets fetches only the last pages.
+  - **Item cards** show the thumbnail (through the per-launch grant path), or the file format when
+    there is none; the name, type and environments; a teal count for sets; and a dashed edge for
+    Unidentified assets.
+  - **Grouping:** By product / By type. Searches, dossier types, collections and Unidentified list
+    every asset, as in the window, and the toggle is disabled there.
+  - **Sets:** double-click (or Enter) opens a set, and the crumb goes back. As in the window, the
+    search stays applied inside it.
+  - **Keys:** arrows, Page Up/Down, Home/End and Enter move and open.
+- **Search:** the search language, applied 300 ms after typing stops or on Enter. A search the core
+  cannot parse shows its message: the client now reads the core's `detail` as well as the
+  service's `error`.
+- **Inspector:**
+  - **Header:** name, type, item and entry counts, and an Unidentified chip.
+  - **Stats panel** (the "loot" card from the identity): polygons, vertices, size and rig from
+    enrichment when known, the environments, and the acquisition date (the earliest entry).
+  - **Tabs,** as in the window:
+    - **Overview:** about, with fields inherited from the product marked; tags with their sources;
+      collections; suggestions (to accept in the window until 6f); variants; merged aliases;
+      Part of; Contains; ledgers with entries; details.
+    - **Files**
+    - **Dependencies:** with broken ones first
+    - **History:** in the window's words
+  - **Links:** Part of, Contains and dependencies select that asset.
+- **The connection** shows as a chip in the top bar (core version and API). `ServiceStatus` now
+  covers only the not-connected states.
+- **Tests:**
+  - **`library-ui.mjs`** runs in the real UI against a fake core serving a synthetic library of
+    5,300 assets (`fake-library.mjs`; the fake core serves it with `FAKE_CORE_LIBRARY=1`). It
+    covers the counts, rendering only the rows in view, fetching only the pages needed, the
+    inspector and its tabs, keys, By type, sets, search and a bad search, collections,
+    Unidentified, containers, types, Refresh and a narrow window.
+  - **`workspace-ui.mjs`** checks the library once connected, and the panel otherwise.
+- **With the real core:** the 7b worktree, and the read-only scratch scan of the real Daz library
+  (235,043 assets, not enriched, so no thumbnails):
+
+  | Step | Time |
+  | --- | --- |
+  | Open to first cards, starting the core | 1.2-1.8 s |
+  | Sidebar counts | 1.3 s |
+  | Jump to the middle of 17,968 products | 0.04-0.5 s |
+  | Select an asset | 0.26 s |
+  | Search "genesis 9 hair" (31 results) | 0.8 s |
+  | By type (219,527 assets) | 1.4 s |
+  | Open a set | 0.8 s |
+
+  There were no page errors.
+
 ## Known gaps and next candidates
 
 - **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
@@ -374,8 +443,14 @@ Needs the core's 7a (`exchange project checkpoint`, cire992/3dExchange#21).
   can sit unsubmitted. The Conversation view sends only when the user does, so
   this showed up only in the scripted check, which now waits for the screen to
   settle.
-- The Workspace placeholder keeps the dark command-deck look in the light theme;
-  phase 6 brings the real Workspace.
+- The Workspace keeps the dark command-deck look in the light theme (decided for phase 6).
+- **Library view (6d):**
+  - It does not hear about scans or edits made elsewhere; use Refresh.
+  - Not yet in the Workspace:
+    - the requisitions and "show candidates" parts of the library view (6i)
+    - editing (6f)
+    - the Unidentified desk's other piles: unattached files and suggestions (6f)
+    - sorting other than by name or type
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.
 - `.github/dependabot.yml` still opens weekly pull requests for workflow pins.

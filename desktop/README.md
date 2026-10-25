@@ -54,6 +54,10 @@ Before a bypassed chat starts or resumes in an Exchange project home (a folder w
 (`exchange project checkpoint`). If that fails, the chat does not start; the New chat dialog and the
 Reconnect bar offer to start it without a checkpoint. See `docs/EXCHANGE_PROGRESS.md` (7c).
 
+Once the service is connected, the Workspace window shows the library (`src/exchange/library/`): a
+sidebar, a virtualized grid of item cards paged from `/api/exchange/dossiers`, search, and a read-only
+inspector. See `docs/EXCHANGE_PROGRESS.md` (6d).
+
 ## Projects and the Conversation view
 
 New chat lists recent projects from `recent-projects.mjs`: this repository, pinned

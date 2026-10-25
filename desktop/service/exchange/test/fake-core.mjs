@@ -1,14 +1,17 @@
 // A stand-in for `python -m exchange serve --exit-with-stdin` in tests: the same ready line, token
-// check and read routes, with canned data. FAKE_CORE_MODE changes its behaviour:
+// check and read routes, with canned data (FAKE_CORE_LIBRARY=1: the synthetic library in
+// fake-library.mjs). FAKE_CORE_MODE changes its behaviour:
 //   crash-once   exits with code 3 shortly after its first ready line (a marker file remembers)
 //   no-ready     never prints the ready line
 //   api2         announces API version 2
 import http from 'node:http';
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { detail, hasThumbnail, list, listCollections, sidebar } from './fake-library.mjs';
 
 const token = process.env.EXCHANGE_SERVICE_TOKEN;
 const mode = process.env.FAKE_CORE_MODE || '';
+const library = process.env.FAKE_CORE_LIBRARY === '1';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const environments = [{ id: 1, uid: 'env-1', name: 'Daz Studio', type_id: 'daz_studio', status: 'online', added_at: '2026-10-24', last_scanned_at: null, roots: [] },
   { id: 2, uid: 'env-2', name: 'Loose files', type_id: 'loose_files', status: 'online', added_at: '2026-10-24', last_scanned_at: null, roots: [] }];
@@ -19,9 +22,18 @@ const server = http.createServer((request, response) => {
   if (url.pathname === '/health') return send(200, { service: 'exchange', version: 'fake', api: 1, schema_version: 7 });
   if (request.headers.authorization !== `Bearer ${token}`) return send(401, { detail: 'Missing or wrong service token' });
   if (request.method !== 'GET') return send(405, { detail: 'Method not allowed' });
+  if (library) {
+    if (url.pathname === '/api/v1/sidebar') return send(200, sidebar());
+    if (url.pathname === '/api/v1/collections') return send(200, listCollections());
+    if (url.pathname === '/api/v1/dossiers') { const { status, body } = list(url.searchParams); return send(status, body); }
+    const thumb = /^\/api\/v1\/dossiers\/([^/]+)\/thumbnail$/.exec(url.pathname);
+    if (thumb) return hasThumbnail(decodeURIComponent(thumb[1])) ? send(200, png, 'image/png') : send(404, { detail: 'No thumbnail' });
+    const one = /^\/api\/v1\/dossiers\/([^/]+)$/.exec(url.pathname);
+    if (one) { const found = detail(decodeURIComponent(one[1])); return found ? send(200, found) : send(404, { detail: 'No such asset' }); }
+  }
   if (url.pathname === '/api/v1/sidebar') return send(200, { all: 235043, unidentified_dossiers: 0, unattached_files: 0, environments: [] });
   if (url.pathname === '/api/v1/environments') return send(200, environments);
-  if (url.pathname === '/api/v1/dossiers') return send(200, { total: 1, offset: 0, items: [], echo: Object.fromEntries(url.searchParams) });
+  if (url.pathname === '/api/v1/dossiers') return send(200, { total: 0, offset: 0, items: [], echo: Object.fromEntries(url.searchParams) });
   if (url.pathname === '/api/v1/dossiers/helmet-1/thumbnail') return send(200, png, 'image/png');
   return send(404, { detail: 'Not found' });
 });

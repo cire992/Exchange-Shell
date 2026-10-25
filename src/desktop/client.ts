@@ -38,7 +38,8 @@ export async function api<T>(path: string, data?: unknown, method?: string, opti
     body: data === undefined ? undefined : JSON.stringify(data),
   })
   const value = await response.json()
-  if (!response.ok) throw Object.assign(new Error(value.error || `Request failed (${response.status})`), { code: value.code })
+  // The service's errors say `error`; the Exchange core's (proxied) say `detail`.
+  if (!response.ok) throw Object.assign(new Error(value.error || (typeof value.detail === 'string' && value.detail) || `Request failed (${response.status})`), { code: value.code })
   return value as T
 }
 export function pickFiles(): Promise<string[]> {

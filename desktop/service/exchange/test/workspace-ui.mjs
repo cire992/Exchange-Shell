@@ -1,5 +1,5 @@
 // The Workspace window's view of the Exchange core's service, in the real UI with a fake core:
-// connected with a first look at the library, the settings, a missing folder and Retry.
+// connected (the library view; see library-ui.mjs), the settings, a missing folder and Retry.
 // Run after npm run build. No Python, library, chats or settings of the user are touched.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -27,10 +27,11 @@ try {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(service.urls.workspace);
   const panel = page.getByRole('region', { name: 'Exchange service' });
-  await expect(panel).toContainText('Connected');
-  await expect(panel).toContainText('core fake-0.1 · API v1');
-  await expect(panel).toContainText('235,043 assets in 2 environments: Daz Studio, Loose files.');
-  await expect(panel).toContainText(core);
+  const connected = page.locator('.library-connection');
+  await expect(connected).toContainText('Connected · core fake-0.1 · API v1');
+  await expect(connected).toHaveAttribute('title', core);
+  await expect(page.getByRole('navigation', { name: 'Library' })).toContainText('235,043');
+  await expect(panel).toHaveCount(0);
 
   // Settings › Exchange core: a folder that does not exist is reported, and Retry is offered.
   await page.getByRole('button', { name: 'Toggle settings', exact: true }).click();
@@ -45,11 +46,12 @@ try {
   // Back to a real folder; Retry after it stops.
   await field.fill(core);
   await page.getByRole('button', { name: 'Save and restart the service' }).click();
-  await expect(panel).toContainText('235,043 assets');
+  await expect(connected).toBeVisible();
   await exchange.stop();
   await expect(panel).toContainText('Stopped');
+  await expect(panel).toContainText(core);
   await panel.getByRole('button', { name: 'Retry' }).click();
-  await expect(panel).toContainText('Connected');
+  await expect(connected).toBeVisible();
   assert.deepEqual(errors, []);
-  console.log('Exchange Workspace UI passed: connected with library counts through the proxy, core settings, a missing folder, stop and Retry.');
+  console.log('Exchange Workspace UI passed: the library once connected, core settings, a missing folder, stop and Retry.');
 } finally { await browser?.close(); await service?.close(); }
