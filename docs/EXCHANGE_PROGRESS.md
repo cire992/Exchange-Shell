@@ -8,7 +8,7 @@ the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phas
 first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
 fast capture. Those docs live in the Exchange repository only.
 
-Last updated 2026-10-25. Phase 5, 6c, 6d, 6f and 7c are merged; 6h is in review (on the core's 6g, part 1: cire992/3dExchange#25).
+Last updated 2026-10-25. Phase 5, 6c, 6d, 6f and 7c are merged; 6h and 6i (stacked on it) are in review, on the core's 6g (cire992/3dExchange#25, and #26 via #27).
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -59,6 +59,7 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 6f, part 1 (#11) | Curation in the Workspace: inspector editing, bulk edit, Undo/Redo, collections, card menus, drag and drop | merged |
 | 6f, part 2 (#12) | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | merged |
 | 6h | Environments and scanning: the add-environment wizard, rescans with a scan bar and Stop, change notices, environment settings, Apply to library | in review |
+| 6i | Requisitions: Requisition to…, the queue, Settings › Processes and Endpoints (stacked on 6h) | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
 
@@ -656,6 +657,65 @@ schema. As the PySide6 window adds and scans environments:
   There were no page errors. During discovery the scanner reports no counts, so the bar says
   "Discovering files" until phase 2, as the window does.
 
+### 6i: requisitions
+
+Needs the core's 6g part 2 (cire992/3dExchange#26, brought onto `main` by #27); the types are
+generated from its schema. Stacked on 6h (its job tracking and scan bar). As the PySide6 window:
+
+- **Requisition to…** (`library/RequisitionDialog.tsx`), from a card's menu, for one asset or the
+  selected ones:
+  - **Environment, route** (Automatic, or a chain from `/requisitions/routes`), **options** (the
+    options last used with each process, or a preset) and **when files exist** (stop and ask,
+    overwrite, rename, skip)
+  - **The plan** (`/requisitions/plan`, asked again a moment after any change): each asset, a
+    product's children too, with an include checkbox, its processes, the entry it starts from and
+    any problem; and warnings (nothing converts there, licenses, missing dependencies)
+  - **Option forms** from the processes' parameters: checkbox, number (with its range), choice or
+    text. Values typed win over the preset's. A value the core refuses leaves its item out, and the
+    core sends forms for included items only, so the dialog keeps a process's last form while an
+    item still goes through it; otherwise the bad value could not be fixed.
+  - **Save these options as a preset…**, the endpoint (and another folder for this requisition)
+  - **Add to queue (N)** and **Add and run** (`/requisitions/queue`, which plans again on the core,
+    then `/jobs/requisitions`)
+- **Requisitions** (the sidebar, with the count waiting, running or needing attention;
+  `library/Queue.tsx`): the queue, then finished requisitions; the chosen one's endpoint, items,
+  messages and files written. Run queue, Hold, Release, Move up and down, Resume ▾ (as it was, or
+  overwriting, renaming or skipping), Rebuild, Remove output… (asks first; a job that rescans) and
+  Check stale. While a job writes, they wait. The scan bar shows a run's requisition, item, step and
+  message; the status line says how the queue finished ("Queue finished · 1 fulfilled, 1 needs
+  attention").
+- **Settings › Processes** (`library/Processes.tsx`): each package's state (ready, not trusted, needs
+  setup), prerequisites green or red with how to fix them, and Set path… for a tool (Blender,
+  texconv…), its options, and where it comes from. Install a package… (a typed folder, or Browse) and
+  Trust this package… (it shows what the package runs and where it writes, and asks).
+- **Settings › Endpoints** (`library/Endpoints.tsx`): where requisitions write in each environment,
+  whether you chose the folder, and its visibility; Change…, Use the default, and Personal or
+  Publishable.
+- **Tests:** `requisitions-ui.mjs`, in the real UI against the fake core (`fake-requisitions.mjs`:
+  Copy, Convert mesh needing a Blender path, and an installable Stamp images; static meshes convert
+  into any environment; a note of "review" stops at a checkpoint). It covers:
+  - Processes: a tool path, installing and trusting a package
+  - Endpoints: a folder, visibility, back to the default
+  - Requisition to…: routes, an option out of range and fixing it, a shipped preset, saving a preset,
+    queueing, a product with nothing to convert, Add and run
+  - the queue: a checkpoint and Resume, a run, Rebuild, Hold and Release, Remove output, Check stale
+- **With the real core** (6g part 2) on the copy of the scratch scan used for 6h, which also holds
+  the scratch fixtures it added. A Daz product was only planned. A real cube (OBJ) written into the
+  scratch loose-files folder was found by a rescan from the environment's menu, converted with
+  Blender into that environment's endpoint (a scratch folder), and its output removed.
+
+  | Step | Time |
+  | --- | --- |
+  | Settings › Processes / Endpoints | 0.08 s / 0.07 s |
+  | Plan a Genesis 9 hair product into Daz (60 items) | 0.84 s |
+  | Plan the cube with Convert mesh | 0.83 s |
+  | Add and run, until "Queue finished · 1 fulfilled" (Blender 4.1) | 6-7 s |
+  | Remove output (moves it to the recycle folder, rescans) | 2.9-3.5 s |
+  | Check stale | 0.05 s |
+
+  There were no page errors. The core's test fixtures' FBX and GLB files are placeholders Blender
+  cannot read: requisitions of them failed, and the queue showed Blender's message.
+
 ## Known gaps and next candidates
 
 - **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
@@ -674,7 +734,8 @@ schema. As the PySide6 window adds and scans environments:
   - It does not hear about scans or edits made elsewhere (the PySide6 window, the CLI); use Refresh.
     Scans started in the Workspace refresh it themselves.
   - Not yet in the Workspace:
-    - the requisitions and "show candidates" parts of the library view (6i)
+    - "show candidates" (the window's candidates for an asset) and a Requisition to… button in the
+      inspector (it is in the card menu)
     - linking files onto an asset from Explorer, Show in folder and Open in app
     - sorting other than by name or type
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet

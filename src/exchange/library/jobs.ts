@@ -102,6 +102,10 @@ const STEPS: Record<string, string> = { discovery: 'Discovering files', identifi
 export function describeProgress(job: Job): string {
   const p = job.progress
   if (!p) return `${job.label} …`
+  if (p.requisition) {
+    const count = p.total ? ` (${(p.done ?? 0) + 1} of ${p.total})` : ''
+    return `${p.requisition} · ${p.item || ''}${count} · [${p.step || ''}] ${p.message || ''}`
+  }
   if (p.phase) {
     const count = p.total ? ` ${(p.done ?? 0).toLocaleString()} / ${p.total.toLocaleString()}` : ''
     return `${job.kind === 'detect' ? 'Detecting' : 'Scanning'} ${p.environment || ''} · Phase ${p.phase} of 3 · ${PHASES[p.phase] || ''} · ${STEPS[p.step || ''] || p.step || ''}${count}`
@@ -117,6 +121,12 @@ export function describeFinished(job: Job): { text: string; error: boolean } | n
     const stats = (job.result?.classification || {}) as { dossiers?: number; tagged?: number }
     return { text: `Lexicons applied · ${(stats.tagged ?? 0).toLocaleString()} of ${(stats.dossiers ?? 0).toLocaleString()} assets tagged`, error: false }
   }
+  if (job.kind === 'requisitions') {
+    const ran = ((job.result?.ran || []) as { state: string }[]).map(r => r.state)
+    const counts = [...new Set(ran)].map(state => `${ran.filter(s => s === state).length} ${state.replace(/_/g, ' ')}`)
+    return { text: `Queue finished · ${counts.length ? counts.join(', ') : 'nothing was queued'}`, error: false }
+  }
+  if (job.kind === 'remove') return { text: 'Output removed: its files are in the recycle folder', error: false }
   if (job.kind === 'scan' || job.kind === 'rescan') {
     const envs = job.report?.environments || []
     const roots = envs.flatMap(env => env.roots)
