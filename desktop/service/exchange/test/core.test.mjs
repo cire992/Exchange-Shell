@@ -53,7 +53,8 @@ test('the core starts with the shell and its API is proxied with its own token',
   assert.deepEqual(page.echo, { query: 'tag:food', limit: '5' });
   assert.equal((await request('/api/exchange/dossiers/missing')).status, 404);
   assert.equal((await request('/api/exchange/sidebar', { headers: { Authorization: '' } })).status, 401, 'the shell token is still required');
-  assert.equal((await request('/api/exchange/sidebar', { method: 'POST', data: {} })).status, 405, 'read-only for now');
+  assert.equal((await request('/api/exchange/sidebar', { method: 'PUT', data: {} })).status, 405, 'reads, POST and DELETE only');
+  assert.equal((await request('/api/exchange/undo', { method: 'POST', data: {}, headers: { 'Content-Type': 'text/plain' } })).status, 415, 'edits are JSON');
 
   // Thumbnails for <img>: the per-launch path stands in for the token.
   const image = await fetch(service.origin + `${bootstrap.exchangeImages}/helmet-1`);

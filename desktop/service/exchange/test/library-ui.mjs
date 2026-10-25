@@ -65,7 +65,7 @@ try {
   await expect(inspector.getByRole('heading', { name: 'Dwarf Helmet' })).toBeVisible();
   await expect(inspector.locator('.library-stats')).toContainText('Polygons1,212');
   await expect(inspector.locator('.library-stats')).toContainText('Acquired2026-10-20');
-  await expect(inspector).toContainText('Sketchfab artist');
+  await expect(inspector.getByRole('textbox', { name: 'Author' })).toHaveValue('Sketchfab artist');
   await expect(inspector.locator('.library-ledger')).toContainText('Loose files');
   await expect(card('Dwarf Helmet').locator('img')).toHaveJSProperty('naturalWidth', 1);
   await inspector.getByRole('tab', { name: 'Files' }).click();
@@ -95,8 +95,7 @@ try {
   await expect(heading).toContainText('10 assets');
   await card('Outfit 000 Piece 1').click();
   await expect(inspector.getByRole('heading', { name: 'Outfit 000 Piece 1' })).toBeVisible();
-  await expect(inspector).toContainText('Daz EULA');
-  await expect(inspector).toContainText('(from its product)');
+  await expect(inspector.getByRole('textbox', { name: 'License' })).toHaveAttribute('placeholder', 'Daz EULA (from its product)');
   await inspector.getByRole('tab', { name: 'Dependencies' }).click();
   await expect(inspector).toContainText('Needs (2, 1 broken)');
   await inspector.getByRole('tab', { name: 'Overview' }).click();

@@ -7,7 +7,7 @@
 import http from 'node:http';
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { detail, hasThumbnail, list, listCollections, sidebar } from './fake-library.mjs';
+import { choices, detail, hasThumbnail, history, list, listCollections, post, remove, sessionState, sidebar } from './fake-library.mjs';
 
 const token = process.env.EXCHANGE_SERVICE_TOKEN;
 const mode = process.env.FAKE_CORE_MODE || '';
@@ -18,11 +18,23 @@ const environments = [{ id: 1, uid: 'env-1', name: 'Daz Studio', type_id: 'daz_s
 
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1');
-  const send = (status, body, type = 'application/json') => { response.writeHead(status, { 'content-type': type, 'cache-control': 'private, max-age=300' }); response.end(type === 'application/json' ? JSON.stringify(body) : body); };
+  // Like the core: only thumbnails may be cached.
+  const send = (status, body, type = 'application/json') => { response.writeHead(status, { 'content-type': type, ...(type === 'application/json' ? {} : { 'cache-control': 'private, max-age=300' }) }); response.end(type === 'application/json' ? JSON.stringify(body) : body); };
   if (url.pathname === '/health') return send(200, { service: 'exchange', version: 'fake', api: 1, schema_version: 7 });
   if (request.headers.authorization !== `Bearer ${token}`) return send(401, { detail: 'Missing or wrong service token' });
+  if (library && request.method === 'POST' && url.pathname.startsWith('/api/v1/')) {
+    let raw = '';
+    request.setEncoding('utf8');
+    request.on('data', chunk => { raw += chunk; });
+    request.on('end', () => { const { status, body } = post(url.pathname.slice('/api/v1/'.length), raw ? JSON.parse(raw) : {}); send(status, body); });
+    return;
+  }
+  if (library && request.method === 'DELETE' && url.pathname.startsWith('/api/v1/')) { const { status, body } = remove(url.pathname.slice('/api/v1/'.length)); return send(status, body); }
   if (request.method !== 'GET') return send(405, { detail: 'Method not allowed' });
   if (library) {
+    if (url.pathname === '/api/v1/session') return send(200, sessionState());
+    if (url.pathname === '/api/v1/choices') return send(200, choices());
+    if (url.pathname === '/api/v1/history') return send(200, history());
     if (url.pathname === '/api/v1/sidebar') return send(200, sidebar());
     if (url.pathname === '/api/v1/collections') return send(200, listCollections());
     if (url.pathname === '/api/v1/dossiers') { const { status, body } = list(url.searchParams); return send(status, body); }

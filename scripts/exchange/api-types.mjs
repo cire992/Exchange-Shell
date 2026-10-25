@@ -4,9 +4,10 @@
 //
 // The default schema is the core repository's docs/api/openapi.json beside this repository
 // (Desktop/3dExchange next to Desktop/Exchange-Shell). It writes src/exchange/api.gen.ts: one
-// interface per schema and `Routes`, the GET routes under /api/v1 with their path and query
-// parameters and response. It covers the JSON Schema the core's FastAPI models produce (objects,
-// arrays, $ref, nullable anyOf, enums, constants and maps); anything else fails loudly.
+// interface per schema; `Routes`, the GET routes under /api/v1 with their path and query
+// parameters and response; and `Posts` and `Deletes`, the edits (6e) with their bodies. It covers
+// the JSON Schema the core's FastAPI models produce (objects, arrays, $ref, nullable anyOf, enums,
+// constants and maps); anything else fails loudly.
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,5 +73,24 @@ for (const [route, operations] of Object.entries(schema.paths)) {
   routes.push(`${comment(op.description || op.summary, '  ')}  ${JSON.stringify(key)}: {\n    path: ${block(group('path'))}\n    query: ${block(group('query'))}\n    response: ${json ? type(json, key) : 'Blob'}\n  }`);
 }
 out += `/** The core's GET routes under ${PREFIX}, proxied by the shell as /api/exchange/<route>. */\nexport interface Routes {\n${routes.join('\n')}\n}\n`;
+
+// The edits (Roadmap phase 6e): POST routes with their JSON body, and DELETE routes.
+const writes = { post: [], delete: [] };
+for (const [route, operations] of Object.entries(schema.paths)) {
+  if (!route.startsWith(`${PREFIX}/`)) continue;
+  for (const method of ['post', 'delete']) {
+    const op = operations[method];
+    if (!op) continue;
+    const key = route.slice(PREFIX.length + 1);
+    const params = (op.parameters || []).filter(p => p.in === 'path').map(p => `      ${quote(p.name)}: ${type(p.schema, `${key}.${p.name}`)}`);
+    if ((op.parameters || []).some(p => p.in === 'query')) throw new Error(`${method.toUpperCase()} ${key}: query parameters are not supported`);
+    const body = op.requestBody?.content?.['application/json']?.schema;
+    const json = op.responses?.['200']?.content?.['application/json']?.schema;
+    if (!json) throw new Error(`${method.toUpperCase()} ${key}: no JSON response`);
+    writes[method].push(`${comment(op.description || op.summary, '  ')}  ${JSON.stringify(key)}: {\n    path: ${params.length ? `{\n${params.join('\n')}\n    }` : '{}'}\n    body: ${body ? type(body, key) : 'undefined'}\n    response: ${type(json, key)}\n  }`);
+  }
+}
+out += `\n/** The core's POST routes (edits), proxied as POST /api/exchange/<route> with a JSON body. */\nexport interface Posts {\n${writes.post.join('\n')}\n}\n`;
+out += `\n/** The core's DELETE routes, proxied as DELETE /api/exchange/<route>. */\nexport interface Deletes {\n${writes.delete.join('\n')}\n}\n`;
 writeFileSync(output, out);
-console.log(`Wrote ${path.relative(root, output)}: ${Object.keys(schema.components?.schemas || {}).length} types, ${routes.length} routes (from ${input})`);
+console.log(`Wrote ${path.relative(root, output)}: ${Object.keys(schema.components?.schemas || {}).length} types, ${routes.length} GET, ${writes.post.length} POST and ${writes.delete.length} DELETE routes (from ${input})`);

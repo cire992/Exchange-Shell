@@ -19,6 +19,14 @@ export interface Brick {
   children: number
 }
 
+export interface Choices {
+  types: TypeChoice[]
+  /** The category lexicon's tags, for completion */
+  tags: string[]
+  /** Fields POST /edits/fields can set */
+  fields: string[]
+}
+
 export interface Collection {
   uid: string
   name: string
@@ -27,6 +35,12 @@ export interface Collection {
   smart: boolean
   /** Null when a smart collection's search no longer compiles */
   count?: number | null
+}
+
+export interface CollectionCreate {
+  name: string
+  /** A saved search makes a smart collection */
+  query?: string | null
 }
 
 export interface CollectionRef {
@@ -45,6 +59,46 @@ export interface Dependency {
   reference: string
   status: string
   target?: DossierRef | null
+}
+
+export interface DeskFile {
+  id: number
+  rel_path: string
+  rel_key: string
+  size?: number | null
+}
+
+export interface DeskFolder {
+  root: number
+  /** A folder in that root, '/' separators; '' is the whole root */
+  path: string
+}
+
+export interface DeskFolderCount {
+  name: string
+  path: string
+  count: number
+}
+
+export interface DeskLevel {
+  /** Subfolders with their unattached files (all levels), largest first */
+  folders: DeskFolderCount[]
+  /** Unattached files directly in this folder */
+  files: number
+  total: number
+}
+
+export interface DeskRoot {
+  id: number
+  path: string
+  environment_id: number
+  environment: string
+}
+
+export interface DismissEdit {
+  uids: string[]
+  /** False counts them as assets again */
+  dismissed?: boolean
 }
 
 /** Everything the inspector shows for one asset. */
@@ -82,6 +136,19 @@ export interface DossierRef {
   uid: string
   name?: string | null
   type_id?: string | null
+}
+
+/** One undoable edit, as the window reports it. */
+export interface EditResult {
+  /** The curation log entry; POST /history/{id}/undo undoes it */
+  log_id: number
+  /** What the edit was, for Undo and Redo, e.g. 'tag 3 assets' */
+  label: string
+  /** The asset or collection the edit created, if any */
+  new_uid?: string | null
+  /** What the edit can have changed: the page and inspector (detail), also the sidebar's collections (collections), or also the sidebar's counts (all) */
+  refresh: "none" | "detail" | "collections" | "all"
+  session: Session
 }
 
 export interface Entry {
@@ -126,10 +193,33 @@ export interface EnvironmentRef {
   type_id: string
 }
 
+export interface FieldEdit {
+  uids: string[]
+  /** One of the editable fields (GET /choices); names are set one asset at a time */
+  field: string
+  /** The new value; null reverts to the scanned one */
+  value?: unknown
+}
+
 export interface FieldValue {
   value?: unknown
   /** scan, user, or a lookup source */
   source?: string | null
+}
+
+export interface FileRef {
+  root: number
+  /** The file's rel_key in that root (case-folded, '/' separators) */
+  key: string
+}
+
+export interface FoldEdit {
+  /** A variant of `into` (Donut01_Blue of Donut01_Pink) */
+  uid: string
+  into: string
+  variant: string
+  /** The variant name for `into`'s own entries, if they have none */
+  target_variant?: string | null
 }
 
 export interface HTTPValidationError {
@@ -145,6 +235,16 @@ export interface Health {
   schema_version: number
 }
 
+export interface HistoryEntry {
+  id: number
+  at: string
+  action: string
+  dossiers: string[]
+  /** The action's own details (field, value, tags, names...) */
+  details: Record<string, unknown>
+  undoable: boolean
+}
+
 export interface HistoryItem {
   /** The curation log id; null for entry events */
   id?: number | null
@@ -154,9 +254,53 @@ export interface HistoryItem {
   undoable?: boolean
 }
 
+export interface IgnoreEdit {
+  environment: number
+  folder: string
+  ignored?: boolean
+}
+
 export interface Ledger {
   environment: EnvironmentRef
   entries: Entry[]
+}
+
+export interface LexiconTermView {
+  value: string
+  words: string[]
+  patterns: string[]
+  /** Words scans found (generated lexicons); not in the file */
+  found?: string[]
+}
+
+export interface LexiconView {
+  id: string
+  name: string
+  kind: string
+  /** Scans add words to it (known authors) */
+  generated: boolean
+  terms: LexiconTermView[]
+  /** Found words the user removed; scans never add them back */
+  exclude?: string[]
+}
+
+export interface LinkEdit {
+  uid: string
+  files?: FileRef[]
+  /** Link the unattached files under this folder */
+  folder?: DeskFolder | null
+}
+
+export interface MembersEdit {
+  uids: string[]
+  /** False removes them */
+  present?: boolean
+}
+
+export interface MergeEdit {
+  /** The asset found twice; its entries join `into` */
+  uid: string
+  into: string
 }
 
 export interface Page {
@@ -165,8 +309,30 @@ export interface Page {
   offset: number
 }
 
+export interface ParentEdit {
+  uids: string[]
+  /** The product to put them in; null takes them out of any product */
+  parent: string | null
+}
+
+export interface ParentRevert {
+  uid: string
+}
+
 export interface Problem {
   detail: string
+}
+
+export interface ProductEdit {
+  name: string
+  children?: string[]
+  /** The unattached files under this folder join the product */
+  folder?: DeskFolder | null
+}
+
+export interface PromoteEdit {
+  uid: string
+  variant: string
 }
 
 export interface Root {
@@ -174,6 +340,13 @@ export interface Root {
   path: string
   status: "online" | "offline"
   offline_since?: string | null
+}
+
+/** This service session's Undo and Redo, as the window's Edit menu shows them. */
+export interface Session {
+  /** The label Undo would undo; null when there is nothing */
+  undo?: string | null
+  redo?: string | null
 }
 
 export interface Sidebar {
@@ -196,10 +369,52 @@ export interface SidebarEnvironment {
   types: TypeCount[]
 }
 
+export interface SplitEdit {
+  uid: string
+  /** Entry ids that become an asset of their own */
+  entries: number[]
+  name?: string | null
+}
+
 export interface Suggestion {
   id: number
   kind: string
   payload: Record<string, unknown>
+}
+
+export interface SuggestionIds {
+  ids: number[]
+}
+
+export interface SuggestionItem {
+  id: number
+  kind: string
+  subject?: string | null
+  subject_name?: string | null
+  confidence: number
+  state: string
+  payload: Record<string, unknown>
+}
+
+export interface Suggestions {
+  /** Pending suggestions of this kind (or all kinds) */
+  total: number
+  /** Pending suggestions by kind */
+  counts: Record<string, number>
+  offset: number
+  items: SuggestionItem[]
+}
+
+export interface TagEdit {
+  uids: string[]
+  add?: string[]
+  /** Removing a scanned tag hides it */
+  remove?: string[]
+}
+
+export interface TagRevert {
+  uid: string
+  tag: string
 }
 
 export interface TagSource {
@@ -209,10 +424,27 @@ export interface TagSource {
   user?: "add" | "remove" | null
 }
 
+export interface TypeChoice {
+  id: string
+  name: string
+  extends?: string | null
+}
+
 export interface TypeCount {
   type_id: string
   name: string
   count: number
+}
+
+export interface UndoResult {
+  /** What was undone or redone; null when there was nothing */
+  label?: string | null
+  refresh: "none" | "detail" | "collections" | "all"
+  session: Session
+}
+
+export interface UnlinkEdit {
+  files: FileRef[]
 }
 
 export interface ValidationError {
@@ -221,6 +453,14 @@ export interface ValidationError {
   type: string
   input?: unknown
   ctx?: Record<string, unknown>
+}
+
+export interface WordEdit {
+  /** The term the word belongs to: a tag, variant group, channel or author */
+  value: string
+  word: string
+  /** False removes it (and excludes it, in a generated lexicon) */
+  present?: boolean
 }
 
 /** The core's GET routes under /api/v1, proxied by the shell as /api/exchange/<route>. */
@@ -283,5 +523,223 @@ export interface Routes {
     path: {}
     query: {}
     response: Collection[]
+  }
+  /** Every lexicon as scans use it: the file's terms, plus the words scans found (known authors). */
+  "lexicons": {
+    path: {}
+    query: {}
+    response: LexiconView[]
+  }
+  /** Pending suggestions, one page at a time, with counts by kind. */
+  "suggestions": {
+    path: {}
+    query: {
+      /** texture_link, variant_group or lexicon_word */
+      kind?: string | null
+      offset?: number
+      limit?: number
+    }
+    response: Suggestions
+  }
+  /** Online roots, the desk's top level for unattached files (counts come per folder). */
+  "desk/roots": {
+    path: {}
+    query: {}
+    response: DeskRoot[]
+  }
+  /** One folder level of a root's unattached files: subfolders with counts, and files directly in it. */
+  "desk/folders": {
+    path: {}
+    query: {
+      root: number
+      /** Root-relative, '/' separators */
+      folder?: string
+    }
+    response: DeskLevel
+  }
+  /** Unattached files under a folder (all levels). */
+  "desk/files": {
+    path: {}
+    query: {
+      root: number
+      folder?: string
+      limit?: number
+    }
+    response: DeskFile[]
+  }
+  /** The library's edits, newest first (every session's, the window's included). */
+  "history": {
+    path: {}
+    query: {
+      offset?: number
+      limit?: number
+    }
+    response: HistoryEntry[]
+  }
+  /** What Undo and Redo would do now. */
+  "session": {
+    path: {}
+    query: {}
+    response: Session
+  }
+  /** What editors offer: dossier types, the category tags, and the editable fields. */
+  "choices": {
+    path: {}
+    query: {}
+    response: Choices
+  }
+}
+
+/** The core's POST routes (edits), proxied as POST /api/exchange/<route> with a JSON body. */
+export interface Posts {
+  /** A manual collection, or a smart one (a saved search); new_uid is its uid. */
+  "collections": {
+    path: {}
+    body: CollectionCreate
+    response: EditResult
+  }
+  /** Set a field on one asset or many (bulk edit); a null value reverts to the scanned one. */
+  "edits/fields": {
+    path: {}
+    body: FieldEdit
+    response: EditResult
+  }
+  /** Add or remove tags on one asset or many. */
+  "edits/tags": {
+    path: {}
+    body: TagEdit
+    response: EditResult
+  }
+  /** Forget the user's choice about one tag (back to what scans found). */
+  "edits/tags/revert": {
+    path: {}
+    body: TagRevert
+    response: EditResult
+  }
+  /** Put assets into a product, or (parent null) take them out of any product. */
+  "edits/parent": {
+    path: {}
+    body: ParentEdit
+    response: EditResult
+  }
+  /** Revert Parent */
+  "edits/parent/revert": {
+    path: {}
+    body: ParentRevert
+    response: EditResult
+  }
+  /** The same asset found twice: `uid`'s entries and children join `into`. */
+  "edits/merge": {
+    path: {}
+    body: MergeEdit
+    response: EditResult
+  }
+  /** `uid` becomes a variant of `into`: one asset, two variants. */
+  "edits/fold-variant": {
+    path: {}
+    body: FoldEdit
+    response: EditResult
+  }
+  /** Entries wrongly grouped into an asset become an asset of their own (new_uid). */
+  "edits/split": {
+    path: {}
+    body: SplitEdit
+    response: EditResult
+  }
+  /** A variant becomes its own asset again (new_uid). */
+  "edits/promote-variant": {
+    path: {}
+    body: PromoteEdit
+    response: EditResult
+  }
+  /** A new product (new_uid) holding assets and/or a desk folder's unattached files. */
+  "edits/products": {
+    path: {}
+    body: ProductEdit
+    response: EditResult
+  }
+  /** Link files (or a desk folder's unattached files) onto an asset. */
+  "edits/link-files": {
+    path: {}
+    body: LinkEdit
+    response: EditResult
+  }
+  /** Unlink Files */
+  "edits/unlink-files": {
+    path: {}
+    body: UnlinkEdit
+    response: EditResult
+  }
+  /** Mark assets as not assets (out of Unidentified and default views), or count them again. */
+  "edits/dismiss": {
+    path: {}
+    body: DismissEdit
+    response: EditResult
+  }
+  /** Ignore a folder from now on: its unattached files leave the desk, and rescans skip it. */
+  "edits/ignore-folder": {
+    path: {}
+    body: IgnoreEdit
+    response: EditResult
+  }
+  /** Add assets to a manual collection, or (present false) remove them. */
+  "collections/{uid}/members": {
+    path: {
+      uid: string
+    }
+    body: MembersEdit
+    response: EditResult
+  }
+  /** Add a word to a lexicon term (written to the user's lexicon file), or remove it. Applies on the next rescan or classification. */
+  "lexicons/{lexicon_id}/words": {
+    path: {
+      lexicon_id: string
+    }
+    body: WordEdit
+    response: EditResult
+  }
+  /** Accept suggestions in one undoable step (the desk's batches). */
+  "suggestions/accept": {
+    path: {}
+    body: SuggestionIds
+    response: EditResult
+  }
+  /** Reject suggestions: they are not offered again. */
+  "suggestions/reject": {
+    path: {}
+    body: SuggestionIds
+    response: EditResult
+  }
+  /** Undo one history entry, from any session; the undo is itself undoable. */
+  "history/{log_id}/undo": {
+    path: {
+      log_id: number
+    }
+    body: undefined
+    response: EditResult
+  }
+  /** Undo this session's latest edit (label null when there is none). */
+  "undo": {
+    path: {}
+    body: undefined
+    response: UndoResult
+  }
+  /** Redo */
+  "redo": {
+    path: {}
+    body: undefined
+    response: UndoResult
+  }
+}
+
+/** The core's DELETE routes, proxied as DELETE /api/exchange/<route>. */
+export interface Deletes {
+  /** Delete Collection */
+  "collections/{uid}": {
+    path: {
+      uid: string
+    }
+    body: undefined
+    response: EditResult
   }
 }

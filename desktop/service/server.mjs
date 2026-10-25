@@ -132,7 +132,10 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (url.pathname === '/api/exchange/status' && method === 'GET') return json(response, 200, exchange.view);
         if (url.pathname === '/api/exchange/restart' && method === 'POST') { await exchange.restart(); return json(response, 200, exchange.view); }
         if (url.pathname.startsWith('/api/exchange/')) {
-          if (!['GET', 'HEAD'].includes(method)) throw Object.assign(new Error('The Exchange API is read-only for now'), { status: 405 });
+          // Reads, and the core's edits (Roadmap phase 6e): POST with a JSON body, and DELETE.
+          if (!['GET', 'HEAD', 'POST', 'DELETE'].includes(method)) throw Object.assign(new Error(`The Exchange API does not take ${method}`), { status: 405 });
+          if (method === 'POST' && !/^application\/json\b/i.test(request.headers['content-type'] || '')) throw Object.assign(new Error('Exchange edits are sent as JSON'), { status: 415 });
+          if (Number(request.headers['content-length'] || 0) > 4 * 1024 * 1024) throw Object.assign(new Error('That edit is too large'), { status: 413 });
           return exchange.proxy(request, response, `/api/v1/${url.pathname.slice('/api/exchange/'.length)}${url.search}`);
         }
         if (method === 'POST' && url.pathname === '/api/files/import') {

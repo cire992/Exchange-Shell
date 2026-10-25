@@ -56,7 +56,9 @@ Reconnect bar offer to start it without a checkpoint. See `docs/EXCHANGE_PROGRES
 
 Once the service is connected, the Workspace window shows the library (`src/exchange/library/`): a
 sidebar, a virtualized grid of item cards paged from `/api/exchange/dossiers`, search, and a read-only
-inspector. See `docs/EXCHANGE_PROGRESS.md` (6d).
+inspector. It edits through the core's write API (`/api/exchange/*` passes POST and DELETE): the
+inspector, bulk edits, card menus, drag and drop, collections, with Undo and Redo. See
+`docs/EXCHANGE_PROGRESS.md` (6d, 6f).
 
 ## Projects and the Conversation view
 
