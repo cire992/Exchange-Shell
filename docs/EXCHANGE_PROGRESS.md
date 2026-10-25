@@ -8,7 +8,7 @@ the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phas
 first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
 fast capture. Those docs live in the Exchange repository only.
 
-Last updated 2026-10-24. Phase 5, 6c and 7c are merged; 6d is in review.
+Last updated 2026-10-25. Phase 5, 6c, 6d and 7c are merged; 6f part 1 is in review.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -54,7 +54,10 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 5d | Chats for Exchange: a bypass checkbox that starts unchecked for every new chat, a badge on bypassed tabs and history rows, and checks with the real Claude Code, Codex, Kimi and PowerShell | merged |
 | 6c (#7) | The shell starts the Exchange core's service and proxies it; its status and settings in the Workspace | merged |
 | 7c (#8) | A git checkpoint of the project home before every launch of a bypassed chat | merged |
-| 6d | Library browsing in the Workspace: sidebar, virtualized item cards, search, read-only inspector | in review |
+| 6d (#9) | Library browsing in the Workspace: sidebar, virtualized item cards, search, read-only inspector | merged |
+| #10 | Fix CI: keep the API-mismatch reason; a Claude Code stand-in in UI tests | merged |
+| 6f, part 1 | Curation in the Workspace: inspector editing, bulk edit, Undo/Redo, collections, card menus, drag and drop | in review |
+| 6f, part 2 | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | next |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`.
 
@@ -432,6 +435,87 @@ is 6f.
 
   There were no page errors.
 
+### 6f, part 1: curation in the Workspace
+
+Needs the core's 6e (the write API, cire992/3dExchange#23). 6f is split in two PRs to keep each
+reviewable. Part 2 brings the Unidentified desk's other piles (unattached files, suggestions in
+batches) and the lexicon editor.
+
+- **Proxy:** `/api/exchange/*` now passes POST (JSON only; anything else is 415) and DELETE on to the
+  core. Bodies are capped at 4 MB. Other methods are still 405.
+- **Types:** `npm run exchange:types` also generates `Posts` and `Deletes`, the edit routes with their
+  bodies. `exchangePost` and `exchangeDelete` in `src/exchange/api.ts` are the typed clients.
+- **Editing** (`library/editing.ts`, `library/actions.ts`), as the window's `_edit`:
+  - every edit is one undoable step
+  - the core says what it can have changed (`detail`, `collections`, `all`), and only that is read
+    again. Pages reload in place, so the grid keeps its scroll and selection.
+  - the status line at the bottom says "Done: … · Ctrl+Z undoes it", or the reason it failed (a
+    busy library, a refused edit) in red
+- **Undo and Redo:** buttons in the top bar (their tooltips name the edit) and Ctrl+Z / Ctrl+Y
+  (Ctrl+Shift+Z). Both work on this service session's edits; a text field keeps its own Ctrl+Z.
+- **Inspector:**
+  - **Fields:** name, type, author, license, source, version and notes are editable. They commit on
+    Enter or when the field loses focus. A value of yours is marked teal with a ↺ revert button, and
+    emptying it reverts too. Values inherited from the product show as placeholders.
+  - **Tags:** chips hide a scanned tag (↺ shows it again) or remove one of yours. An input with the
+    category tags as suggestions adds one.
+  - **Collections:** chips remove, and a list adds.
+  - **Suggestions:** Accept and Reject.
+  - **History:** an Undo button on each undoable entry; undoing an entry is itself an edit.
+- **Multi-select:** Ctrl+click, Shift+click and Ctrl+A (the cards read so far). Several selected
+  assets show a bulk inspector: type, about fields, notes, adding and removing tags, and adding to a
+  collection. Names are edited one at a time.
+- **Card menu (right-click, or the menu key):** the window's actions:
+  - Rename…
+  - Add to collection (or a new one)
+  - Remove from the collection in view
+  - Put into a new product…
+  - Take out of the set in view
+  - Merge the others into this one (several selected)
+  - Split… (one entry at a time)
+  - Make a variant its own asset
+  - Not an asset, or Count as an asset again (with `is:dismissed`)
+
+  Dialogs (`library/Dialogs.tsx`) ask for names and choices.
+- **Drag and drop:**
+  - **Cards onto a card:** the window's drop menu: put them into a product, merge them into it (the
+    same asset), or fold one in as a variant.
+  - **Cards onto a manual collection** in the sidebar add them.
+- **Sidebar:** a + for a new collection. Right-click offers New collection, Save this search as a
+  smart collection, and Delete.
+- **Not in part 1:**
+  - **Linking files:** dropping files from Explorer on a card, and the drop menu's "Link their files".
+    The write API takes files by root and key, which the reads do not give yet.
+  - **Show in folder and Open in app**
+  - **Requisitions (6i)**
+- **Tests:** `curation-ui.mjs`, in the real UI against the fake core. The fake core's synthetic library
+  now takes edits in memory, with snapshots for Undo and Redo; a field set to `__busy__` answers 503.
+  It covers:
+  - inspector edits with revert markers, tags and collections
+  - Undo and Redo by button and key
+  - multi-select and bulk edit
+  - the card menu and its dialogs
+  - dropping on a card (merge) and on a collection
+  - deleting a collection and undoing it
+  - Not an asset and back
+  - a suggestion, and undoing a history entry
+  - a busy library
+
+  The proxy's new rules are in `core.test.mjs`.
+- **With the real core:** `main` with 6e, on a copy of the scratch scan of the real Daz library
+  (235,087 dossiers).
+
+  | Step | Time |
+  | --- | --- |
+  | Rename, until the card and inspector show it | 0.9 s |
+  | Undo | 0.24 s |
+  | Bulk tag 3 assets | 0.22 s |
+  | New product from the menu | 0.14 s |
+  | Undo by Ctrl+Z | under 0.1 s |
+  | New collection, then drop a card on it | 0.36 s |
+
+  There were no page errors.
+
 ## Known gaps and next candidates
 
 - **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
@@ -448,8 +532,9 @@ is 6f.
   - It does not hear about scans or edits made elsewhere; use Refresh.
   - Not yet in the Workspace:
     - the requisitions and "show candidates" parts of the library view (6i)
-    - editing (6f)
-    - the Unidentified desk's other piles: unattached files and suggestions (6f)
+    - the Unidentified desk's other piles: unattached files and suggestions (6f, part 2)
+    - the lexicon editor (6f, part 2)
+    - linking files onto an asset, Show in folder and Open in app
     - sorting other than by name or type
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.

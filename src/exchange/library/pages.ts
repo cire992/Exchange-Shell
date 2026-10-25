@@ -30,6 +30,18 @@ export class Pages {
     return this.pages.get(Math.floor(index / PAGE_SIZE))?.[index % PAGE_SIZE]
   }
 
+  // After an edit: fetch the loaded pages again, showing the old ones until the new arrive, so
+  // the grid keeps its place.
+  reload() {
+    this.error = ''
+    for (const page of [...this.pages.keys()]) {
+      exchangeGet('dossiers', { query: { ...this.query, offset: page * PAGE_SIZE, limit: PAGE_SIZE } })
+        .then(result => { this.pages.set(page, result.items); this.total = result.total })
+        .catch(error => { this.error = error instanceof Error ? error.message : String(error) })
+        .finally(() => this.changed())
+    }
+  }
+
   // Fetch the pages holding items first..last (inclusive) that are not loaded or loading.
   ensure(first: number, last: number) {
     if (this.error) return

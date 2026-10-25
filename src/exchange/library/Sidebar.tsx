@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Collection, Sidebar as SidebarData, SidebarEnvironment } from '../api'
+import { DRAG_TYPE } from './Browser'
 import { viewKey, type View } from './views'
 
 interface Props {
@@ -8,20 +9,36 @@ interface Props {
   error: string
   view: View
   choose: (view: View) => void
+  newCollection: () => void
+  collectionMenu: (x: number, y: number, collection: Collection | null) => void
+  dropOnCollection: (collection: Collection, uids: string[]) => void
 }
 
 const count = (n: number | null | undefined) => n === null || n === undefined ? '' : n.toLocaleString()
 
 // The library, collections, then environments › containers or dossier types, as in the PySide6
 // window's sidebar.
-export default function Sidebar({ data, collections, error, view, choose }: Props) {
+export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (key: string) => setOpen(previous => ({ ...previous, [key]: !previous[key] }))
   const current = viewKey(view)
-  const item = (target: View, label: string, n?: number | null, extra = '') => {
+  const [over, setOver] = useState<string | null>(null)
+  const item = (target: View, label: string, n?: number | null, extra = '', collection?: Collection) => {
     const key = viewKey(target)
-    return <button type="button" key={key} className={`library-nav-item ${extra} ${current === key ? 'selected' : ''}`}
-      aria-current={current === key ? 'true' : undefined} onClick={() => choose(target)}>
+    // Manual collections take dropped cards; any collection has a menu.
+    const drops = collection && !collection.smart ? {
+      onDragOver: (event: React.DragEvent) => { if (event.dataTransfer.types.includes(DRAG_TYPE)) { event.preventDefault(); event.dataTransfer.dropEffect = 'link'; setOver(key) } },
+      onDragLeave: () => setOver(null),
+      onDrop: (event: React.DragEvent) => {
+        setOver(null)
+        if (!event.dataTransfer.types.includes(DRAG_TYPE)) return
+        event.preventDefault()
+        dropOnCollection(collection, JSON.parse(event.dataTransfer.getData(DRAG_TYPE)) as string[])
+      },
+    } : {}
+    return <button type="button" key={key} className={`library-nav-item ${extra} ${current === key ? 'selected' : ''} ${over === key ? 'drop' : ''}`}
+      aria-current={current === key ? 'true' : undefined} onClick={() => choose(target)}
+      onContextMenu={collection ? event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, collection) } : undefined} {...drops}>
       <span>{label}</span><small>{count(n)}</small>
     </button>
   }
@@ -46,9 +63,12 @@ export default function Sidebar({ data, collections, error, view, choose }: Prop
     <h2>Library</h2>
     {item({ kind: 'all' }, 'All assets', data?.all)}
     {item({ kind: 'unidentified' }, 'Unidentified', data?.unidentified_dossiers, 'warn')}
-    <h2>Collections</h2>
+    <div className="library-sidebar-head" onContextMenu={event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, null) }}>
+      <h2>Collections</h2>
+      <button type="button" className="library-icon-button" title="New collection (right-click for a smart one from the search)" aria-label="New collection" onClick={newCollection}>+</button>
+    </div>
     {collections === null ? <p className="library-muted">Loading…</p>
-      : collections.length ? collections.map(c => item({ kind: 'collection', uid: c.uid, name: c.name }, c.smart ? `${c.name} ⌕` : c.name, c.count))
+      : collections.length ? collections.map(c => item({ kind: 'collection', uid: c.uid, name: c.name }, c.smart ? `${c.name} ⌕` : c.name, c.count, '', c))
         : <p className="library-muted">No collections yet.</p>}
     <h2>Environments</h2>
     {error && <p className="library-error" role="alert">{error}</p>}
