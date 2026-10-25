@@ -90,6 +90,8 @@ test('a crash while running is restarted once; startup problems wait for Retry',
 
   const api2 = await fixture(t, { mode: 'api2' });
   await until(() => api2.exchange.state.status === 'error', 'the API mismatch');
+  // The refused core then exits on its own; that must not replace the reason.
+  await until(() => !api2.exchange.child, 'the refused core to exit');
   assert.match(api2.exchange.state.message, /speaks API v1; the core offers v2/);
   assert.equal((await api2.request('/api/exchange/sidebar')).status, 503);
 });
