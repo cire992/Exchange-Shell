@@ -2,10 +2,11 @@ import type { Query } from './pages'
 
 // What the browser lists: a sidebar choice, optionally a product opened from it, a search and a
 // grouping. The core lists everything (no product grouping) for searches, dossier types,
-// collections and Unidentified, as the PySide6 window does.
+// collections and Unidentified, as the PySide6 window does. Lexicons is the lexicon editor.
 export type View =
   | { kind: 'all' }
   | { kind: 'unidentified' }
+  | { kind: 'lexicons' }
   | { kind: 'collection'; uid: string; name: string }
   | { kind: 'environment'; id: number; name: string }
   | { kind: 'container'; id: number; name: string; environment: string }
@@ -30,6 +31,10 @@ export const viewKey = (view: View) => {
   }
 }
 
+// The Unidentified desk's piles (the window's desk buttons).
+export type Pile = 'low' | 'files' | 'suggestions'
+export const PILES: { pile: Pile; label: string }[] = [{ pile: 'low', label: 'Low confidence' }, { pile: 'files', label: 'Unattached files' }, { pile: 'suggestions', label: 'Suggestions' }]
+
 export function effectiveGroup({ view, search, group }: Listing): Group | 'all' {
   return search.trim() || view.kind === 'type' || view.kind === 'collection' || view.kind === 'unidentified' ? 'all' : group
 }
@@ -51,6 +56,7 @@ export function listingQuery(listing: Listing): Query {
 export function viewTitle(view: View): { crumb: string; title: string } {
   switch (view.kind) {
     case 'unidentified': return { crumb: 'Unidentified desk', title: 'Low confidence' }
+    case 'lexicons': return { crumb: 'Definitions', title: 'Lexicons' }
     case 'collection': return { crumb: 'Collection', title: view.name }
     case 'environment': return { crumb: 'Environments', title: view.name }
     case 'container': return { crumb: view.environment, title: view.name }

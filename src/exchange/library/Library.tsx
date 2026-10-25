@@ -6,17 +6,21 @@ import Browser, { type SelectMode } from './Browser'
 import { DialogProvider, useDialogs, type MenuItem } from './Dialogs'
 import { useEditing, useUndoKeys, type Refresh } from './editing'
 import Inspector from './Inspector'
+import Lexicons from './Lexicons'
 import Sidebar from './Sidebar'
+import Suggestions from './Suggestions'
+import Unattached from './Unattached'
 import { Pages } from './pages'
 import { plural } from './format'
-import { effectiveGroup, listingQuery, viewTitle, type Group, type Listing, type View } from './views'
+import { effectiveGroup, listingQuery, PILES, viewTitle, type Group, type Listing, type Pile, type View } from './views'
 import './library.css'
 
 const SEARCH_DELAY = 300
 
 // The Workspace's library view (Roadmap phases 6d and 6f): the PySide6 window's layout, with its
 // editing. Sidebar | item-card grid | inspector, with the search language on top, Undo and Redo,
-// and a status line saying what the last edit did.
+// and a status line saying what the last edit did. Unidentified is the window's desk, with its three
+// piles (low confidence, unattached files, suggestions); Lexicons is its lexicon editor.
 export default function Library() {
   return <DialogProvider><LibraryView /></DialogProvider>
 }
@@ -29,7 +33,9 @@ function LibraryView() {
   const [listing, setListing] = useState<Listing>({ view: { kind: 'all' }, parent: null, search: '', group: 'product' })
   const [draft, setDraft] = useState('')
   const [generation, setGeneration] = useState(0) // Refresh: everything is read again
-  const [revisions, setRevisions] = useState({ side: 0, collections: 0, detail: 0 }) // after edits
+  const [revisions, setRevisions] = useState({ side: 0, collections: 0, detail: 0, edits: 0 }) // after edits
+  const [pile, setPile] = useState<Pile>('low')
+  const [pending, setPending] = useState<number | null>(null) // suggestions, for the desk's pile buttons
   const [side, setSide] = useState<{ key: string; sidebar?: SidebarData; error?: string }>({ key: '' })
   const [shelf, setShelf] = useState<{ key: string; collections?: Collection[] }>({ key: '' })
   const [choices, setChoices] = useState<Choices | null>(null)
@@ -45,10 +51,12 @@ function LibraryView() {
   const selectedUids = useMemo(() => new Set(selected.picked.keys()), [selected.picked])
 
   // After an edit, read again what it can have changed (the window's refresh scopes).
+  // The desk's suggestions and the lexicons are read again after any edit (a rejection or a lexicon
+  // word changes nothing else).
   const refresh = useCallback((scope: Refresh) => {
-    if (scope === 'none') return
+    if (scope === 'none') { setRevisions(r => ({ ...r, edits: r.edits + 1 })); return }
     pages.reload()
-    setRevisions(r => ({ detail: r.detail + 1, collections: scope === 'detail' ? r.collections : r.collections + 1, side: scope === 'all' ? r.side + 1 : r.side }))
+    setRevisions(r => ({ edits: r.edits + 1, detail: r.detail + 1, collections: scope === 'detail' ? r.collections : r.collections + 1, side: scope === 'all' ? r.side + 1 : r.side }))
   }, [pages])
   const editing = useEditing(refresh)
   useUndoKeys(editing)
@@ -79,14 +87,27 @@ function LibraryView() {
   const sidebar = side.sidebar ?? null, collections = shelf.collections ?? null
   const manual = (collections || []).filter(c => !c.smart)
 
-  // The search applies a moment after typing stops, or at once on Enter.
+  const desk = listing.view.kind === 'unidentified' && !listing.parent
+  useEffect(() => {
+    if (!desk) return
+    let current = true
+    exchangeGet('suggestions', { query: { limit: 1 } }).then(page => { if (current) setPending(page.total) }).catch(() => {})
+    return () => { current = false }
+  }, [desk, generation, revisions.edits])
+
+  // The search applies a moment after typing stops, or at once on Enter. It lists assets: from the
+  // lexicons it goes to All assets, and in the desk to its low-confidence pile.
+  const search = useCallback((text: string) => {
+    setListing(previous => ({ ...previous, view: previous.view.kind === 'lexicons' ? { kind: 'all' } : previous.view, search: text }))
+    setPile('low')
+  }, [])
   useEffect(() => {
     if (draft === listing.search) return
-    const timer = setTimeout(() => setListing(previous => ({ ...previous, search: draft })), SEARCH_DELAY)
+    const timer = setTimeout(() => search(draft), SEARCH_DELAY)
     return () => clearTimeout(timer)
-  }, [draft, listing.search])
+  }, [draft, listing.search, search])
 
-  const choose = (view: View) => setListing(previous => ({ ...previous, view, parent: null }))
+  const choose = (view: View) => { setListing(previous => ({ ...previous, view, parent: null })); setPile('low') }
   const openSet = (brick: Brick) => setListing(previous => ({ ...previous, parent: { uid: brick.uid, name: brick.name } }))
   const show = (ref: DossierRef) => setSelection({ key, focus: null, anchor: null, picked: new Map([[ref.uid, -1]]) })
   const group = (value: Group) => setListing(previous => ({ ...previous, group: value }))
@@ -201,13 +222,21 @@ function LibraryView() {
     ? 'No environments yet. Add one in the PySide6 window or with exchange scan.'
     : listing.view.kind === 'collection' && !listing.search ? 'This collection is empty.' : 'Nothing here matches.'
   const { session, status, busy } = editing
+  const shown: Pile | 'lexicons' = listing.view.kind === 'lexicons' ? 'lexicons' : desk ? pile : 'low'
+  const pileCount = (value: Pile) => value === 'low' ? sidebar?.unidentified_dossiers : value === 'files' ? sidebar?.unattached_files : pending
+  let heading: { title: string; text: string }
+  if (shown === 'files') heading = { title: 'Unattached files', text: sidebar ? `${plural(sidebar.unattached_files, 'file')} no asset holds, as of the last scans` : 'Counting…' }
+  else if (shown === 'suggestions') heading = { title: 'Suggestions', text: pending === null ? 'Counting…' : `${plural(pending, 'pending suggestion')}: accept or reject them in batches` }
+  else if (shown === 'lexicons') heading = { title, text: 'The word lists scans tag, group and name assets with' }
+  else heading = { title: listing.parent ? listing.parent.name : title,
+    text: total === null ? 'Loading…' : `${plural(total, one, many)}${listing.search ? ` matching “${listing.search}”` : ''}${selectedUids.size > 1 ? ` · ${selectedUids.size.toLocaleString()} selected` : ''}` }
 
   return <div className="library">
     <header className="library-top">
-      <form className="library-search" role="search" onSubmit={event => { event.preventDefault(); setListing(previous => ({ ...previous, search: draft })) }}>
+      <form className="library-search" role="search" onSubmit={event => { event.preventDefault(); search(draft) }}>
         <input value={draft} onChange={event => setDraft(event.target.value)} aria-label="Search the library" spellCheck={false}
           placeholder="Search: donut env:starfield tag:food -tag:damaged type:mesh" />
-        {draft && <button type="button" className="library-clear" aria-label="Clear the search" onClick={() => { setDraft(''); setListing(previous => ({ ...previous, search: '' })) }}>×</button>}
+        {draft && <button type="button" className="library-clear" aria-label="Clear the search" onClick={() => { setDraft(''); search('') }}>×</button>}
       </form>
       <div className="library-undo" role="group" aria-label="Undo and Redo">
         <button type="button" className="library-button" disabled={!session.undo || busy} onClick={() => void editing.undo()}
@@ -218,7 +247,7 @@ function LibraryView() {
       <span className="library-connection" title={exchange.core || undefined}><i aria-hidden="true" />Connected · core {exchange.version} · API v{exchange.api}</span>
       <button type="button" className="library-button" onClick={() => setGeneration(n => n + 1)} title="Read the library again (after a scan or edits in the PySide6 window)">Refresh</button>
     </header>
-    <div className="library-body">
+    <div className={`library-body ${shown === 'lexicons' ? 'wide' : ''}`}>
       <Sidebar data={sidebar} collections={collections} error={side.error || ''} view={listing.view} choose={choose}
         newCollection={() => void newCollection()} collectionMenu={collectionMenu}
         dropOnCollection={(collection, uids) => void actions.members(collection.uid, uids, true)} />
@@ -228,21 +257,26 @@ function LibraryView() {
             {listing.parent
               ? <button type="button" className="library-crumb library-link" onClick={() => setListing(previous => ({ ...previous, parent: null }))}>‹ {title}</button>
               : <span className="library-crumb">{crumb}</span>}
-            <h2>{listing.parent ? listing.parent.name : title}</h2>
-            <p>{total === null ? 'Loading…' : `${plural(total, one, many)}${listing.search ? ` matching “${listing.search}”` : ''}`}
-              {selectedUids.size > 1 && ` · ${selectedUids.size.toLocaleString()} selected`}</p>
+            <h2>{heading.title}</h2>
+            <p>{heading.text}</p>
           </div>
-          <div className="library-group" role="group" aria-label="Group by">
+          {desk ? <div className="library-group library-piles" role="group" aria-label="Unidentified desk">
+            {PILES.map(({ pile: value, label }) => <button key={value} type="button" aria-pressed={pile === value} onClick={() => setPile(value)}>
+              {label} <small>{pileCount(value)?.toLocaleString() ?? ''}</small></button>)}
+          </div> : shown !== 'lexicons' && <div className="library-group" role="group" aria-label="Group by">
             {(['product', 'type'] as const).map(value => <button key={value} type="button" aria-pressed={listing.group === value}
               disabled={!!listing.parent || grouping !== listing.group} onClick={() => group(value)}
               title={grouping === 'all' ? 'Searches, dossier types, collections and Unidentified list every asset' : undefined}>
               {value === 'product' ? 'By product' : 'By type'}</button>)}
-          </div>
+          </div>}
         </header>
-        <Browser key={key} pages={pages} selected={selectedUids} focus={selected.focus} empty={empty}
-          select={select} selectAll={selectAll} open={openSet} menu={(x, y, brick) => void cardMenu(x, y, brick)} dragged={dragged} drop={drop} />
+        {shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say} />
+          : shown === 'files' ? <Unattached key={generation} revision={revisions.side} actions={actions} show={show} />
+            : shown === 'suggestions' ? <Suggestions key={generation} revision={revisions.edits} actions={actions} show={show} />
+              : <Browser key={key} pages={pages} selected={selectedUids} focus={selected.focus} empty={empty}
+                select={select} selectAll={selectAll} open={openSet} menu={(x, y, brick) => void cardMenu(x, y, brick)} dragged={dragged} drop={drop} />}
       </section>
-      <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual} />
+      {shown !== 'lexicons' && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual} />}
     </div>
     <footer className={`library-statusline ${status?.error ? 'error' : ''}`} role="status" aria-live="polite">
       {status?.text || 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.'}

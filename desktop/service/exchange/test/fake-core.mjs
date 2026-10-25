@@ -7,7 +7,7 @@
 import http from 'node:http';
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { choices, detail, hasThumbnail, history, list, listCollections, post, remove, sessionState, sidebar } from './fake-library.mjs';
+import { choices, desk, detail, hasThumbnail, history, lexicons, list, listCollections, post, remove, sessionState, sidebar, suggestions } from './fake-library.mjs';
 
 const token = process.env.EXCHANGE_SERVICE_TOKEN;
 const mode = process.env.FAKE_CORE_MODE || '';
@@ -36,6 +36,10 @@ const server = http.createServer((request, response) => {
     if (url.pathname === '/api/v1/choices') return send(200, choices());
     if (url.pathname === '/api/v1/history') return send(200, history());
     if (url.pathname === '/api/v1/sidebar') return send(200, sidebar());
+    if (url.pathname === '/api/v1/suggestions') return send(200, suggestions(url.searchParams));
+    if (url.pathname === '/api/v1/lexicons') return send(200, lexicons());
+    const pile = url.pathname.startsWith('/api/v1/desk/') && desk(url.pathname.slice('/api/v1/'.length), url.searchParams);
+    if (pile) return send(pile.status, pile.body);
     if (url.pathname === '/api/v1/collections') return send(200, listCollections());
     if (url.pathname === '/api/v1/dossiers') { const { status, body } = list(url.searchParams); return send(status, body); }
     const thumb = /^\/api\/v1\/dossiers\/([^/]+)\/thumbnail$/.exec(url.pathname);
