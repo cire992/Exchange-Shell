@@ -11,7 +11,8 @@ import { configure, environment, environments, registerRoot, rootOwner, scanned 
 const STEP_MS = Number(process.env.FAKE_JOB_STEP_MS) || 120;
 const MAX_WAIT = 25;
 const STOPPED = { scan: 'Stopped; everything finished before that is saved.', rescan: 'Stopped; everything finished before that is saved.',
-  classify: 'Stopped; the classification was not saved.', detect: 'Stopped.' };
+  classify: 'Stopped; the classification was not saved.', detect: 'Stopped.',
+  requisitions: 'Stopped; the requisition that was running is queued again.', remove: 'Stopped; the files moved so far stay in the recycle folder.' };
 const types = [
   { id: 'daz_studio', name: 'Daz Studio', handler: 'daz', multi_root: true, fallback: false, ignore_globs: ['*.tmp'], variants: [] },
   { id: 'loose_files', name: 'Loose files', handler: 'folder', multi_root: false, fallback: true, ignore_globs: [], variants: [] },
@@ -21,18 +22,18 @@ const types = [
 const found = path.join(process.cwd(), 'found', 'Personal Library');
 mkdirSync(found, { recursive: true });
 
-class Refused extends Error { constructor(status, message) { super(message); this.status = status; } }
+export class Refused extends Error { constructor(status, message) { super(message); this.status = status; } }
 const jobs = new Map();
 export const excluded = []; // folders the wizard said never to index (GET test/excluded)
 let ids = 0, version = 0;
 const waiters = new Set();
 const changed = () => { for (const wake of [...waiters]) wake(); };
 const bump = job => { job.version++; version++; changed(); };
-const view = (job, full = true) => ({ id: job.id, kind: job.kind, label: job.label, state: job.state, writes: job.writes, environments: job.environments,
+export const view = (job, full = true) => ({ id: job.id, kind: job.kind, label: job.label, state: job.state, writes: job.writes, environments: job.environments,
   started_at: job.started_at, finished_at: job.finished_at, progress: job.progress, error: job.error, version: job.version,
-  report: full && job.kind !== 'classify' ? job.out : null, result: full && job.kind === 'classify' ? job.out : null });
+  report: full && ['scan', 'detect', 'rescan'].includes(job.kind) ? job.out : null, result: full && !['scan', 'detect', 'rescan'].includes(job.kind) ? job.out : null });
 
-function start(kind, label, { writes, steps, finish, environments: envIds = [] }) {
+export function start(kind, label, { writes, steps, finish, environments: envIds = [] }) {
   const running = [...jobs.values()].find(j => j.writes && j.state === 'running');
   if (writes && running) throw new Refused(409, `${running.label} is running; wait for it to finish, or stop it`);
   const job = { id: ++ids, kind, label, writes, environments: envIds, state: 'running', started_at: new Date().toISOString(), finished_at: null,
@@ -145,16 +146,23 @@ export function getJobs(route, params, send) {
 
 const VISIBILITIES = ['personal', 'publishable'];
 
+export function refuseWhileWriting() {
+  const running = [...jobs.values()].find(j => j.writes && j.state === 'running');
+  if (running) throw new Refused(409, `${running.label} is running; wait for it to finish, or stop it`);
+}
+// A job's stop hook (a requisition run puts the running one back in the queue).
+const onStop = new Map();
+export const whenStopped = (job, fn) => onStop.set(job.id, fn);
+
 export function postJobs(route, body) {
   try {
-    const writer = () => [...jobs.values()].find(j => j.writes && j.state === 'running');
-    const refuseWhileWriting = () => { const running = writer(); if (running) throw new Refused(409, `${running.label} is running; wait for it to finish, or stop it`); };
     const stop = /^jobs\/(\d+)\/stop$/.exec(route);
     if (stop) {
       const job = jobs.get(Number(stop[1]));
       if (!job) throw new Refused(404, `no job ${stop[1]}`);
       if (job.state === 'running') {
         clearInterval(job.timer);
+        onStop.get(job.id)?.();
         job.state = 'stopped'; job.error = STOPPED[job.kind]; job.finished_at = new Date().toISOString();
         bump(job);
       }

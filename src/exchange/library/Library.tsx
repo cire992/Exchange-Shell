@@ -5,17 +5,21 @@ import { libraryActions } from './actions'
 import Browser, { type SelectMode } from './Browser'
 import { DialogProvider, useDialogs, type MenuItem } from './Dialogs'
 import { useEditing, useUndoKeys, type Refresh } from './editing'
+import Endpoints from './Endpoints'
 import EnvironmentSettings from './EnvironmentSettings'
 import Inspector from './Inspector'
 import { describeFinished, describeProgress, Jobs } from './jobs'
 import Lexicons from './Lexicons'
+import Processes from './Processes'
+import Queue from './Queue'
+import RequisitionDialog from './RequisitionDialog'
 import Sidebar from './Sidebar'
 import Suggestions from './Suggestions'
 import Unattached from './Unattached'
 import Wizard from './Wizard'
 import { Pages } from './pages'
 import { plural } from './format'
-import { effectiveGroup, listingQuery, PILES, viewTitle, type Group, type Listing, type Pile, type View } from './views'
+import { effectiveGroup, isPage, listingQuery, PILES, viewTitle, type Group, type Listing, type Pile, type View } from './views'
 import './library.css'
 
 const SEARCH_DELAY = 300
@@ -25,7 +29,8 @@ const SEARCH_DELAY = 300
 // and a status line saying what the last edit did. Unidentified is the window's desk, with its three
 // piles (low confidence, unattached files, suggestions); Lexicons is its lexicon editor. Environments
 // are added (the wizard) and scanned in the core's worker processes (6h): the scan bar follows the
-// running job, and changes the core notices since the last scan offer a rescan.
+// running job, and changes the core notices since the last scan offer a rescan. Requisition to…
+// plans and queues conversions; the queue and Settings › Processes and Endpoints are pages (6i).
 export default function Library() {
   return <DialogProvider><LibraryView /></DialogProvider>
 }
@@ -74,6 +79,9 @@ function LibraryView() {
   useSyncExternalStore(jobs.subscribe, jobs.getVersion)
   const [wizard, setWizard] = useState(false)
   const [settingsOf, setSettingsOf] = useState<number | null>(null)
+  const [requisition, setRequisition] = useState<{ uids: string[]; title: string } | null>(null)
+  const [queueReads, setQueueReads] = useState(0) // the queue changed (queued, acted on, a job ended)
+  const [queueCount, setQueueCount] = useState<number | null>(null)
   const latest = useRef({ refresh, say: editing.say })
   useEffect(() => { latest.current = { refresh, say: editing.say } })
   useEffect(() => {
@@ -84,6 +92,7 @@ function LibraryView() {
     })
     const finished = jobs.onFinished(job => {
       if (job.writes) latest.current.refresh('all')
+      setQueueReads(n => n + 1)
       const said = describeFinished(job)
       if (said && job.kind !== 'detect') latest.current.say(said.text, said.error)
     })
@@ -97,6 +106,20 @@ function LibraryView() {
   const rescan = (ids: number[] = []) => void startJob(() => exchangePost('jobs/rescan', { body: { environments: ids } }))
   const stopJob = () => { if (writer) void startJob(() => exchangePost('jobs/{job_id}/stop', { path: { job_id: writer.id } })) }
   const applyLexicons = (regroup: boolean) => void startJob(() => exchangePost('jobs/classify', { body: { regroup } }))
+  const runQueue = (ids?: number[]) => void startJob(() => exchangePost('jobs/requisitions', { body: { ids: ids || null } }))
+  const removeOutput = (id: number) => void startJob(() => exchangePost('jobs/remove-output', { body: { requisition: id } }))
+  const queued = (ids: number[], run: boolean) => {
+    editing.say(`Queued ${ids.length} requisition${ids.length === 1 ? '' : 's'}${run ? ' · running' : ' · run it from Requisitions'}`)
+    setQueueReads(n => n + 1)
+    if (run) runQueue()
+  }
+  useEffect(() => {
+    let current = true
+    exchangeGet('requisitions').then(rows => {
+      if (current) setQueueCount(rows.filter(r => ['queued', 'held', 'running', 'needs_attention'].includes(r.state)).length)
+    }).catch(() => {})
+    return () => { current = false }
+  }, [generation, queueReads])
   const environmentMenu = (x: number, y: number, env: SidebarEnvironment) => dialogs.menu(x, y, [
     { label: `Rescan ${env.name}`, disabled: !!writer, run: () => rescan([env.id]) },
     { label: 'Settings…', run: () => setSettingsOf(env.id) },
@@ -137,7 +160,7 @@ function LibraryView() {
   // The search applies a moment after typing stops, or at once on Enter. It lists assets: from the
   // lexicons it goes to All assets, and in the desk to its low-confidence pile.
   const search = useCallback((text: string) => {
-    setListing(previous => ({ ...previous, view: previous.view.kind === 'lexicons' ? { kind: 'all' } : previous.view, search: text }))
+    setListing(previous => ({ ...previous, view: isPage(previous.view) ? { kind: 'all' } : previous.view, search: text }))
     setPile('low')
   }, [])
   useEffect(() => {
@@ -189,7 +212,7 @@ function LibraryView() {
     const uids = selectedUids.has(clicked.uid) && selectedUids.size ? [...selectedUids] : [clicked.uid]
     const many = uids.length > 1
     const view = listing.view
-    const items: MenuItem[] = []
+    const items: MenuItem[] = [{ label: 'Requisition to…', run: () => setRequisition({ uids, title: many ? `${uids.length} assets` : clicked.name }) }, { label: '-' }]
     if (!many) items.push({ label: 'Rename…', run: async () => {
       const name = await dialogs.ask({ title: 'Rename', label: 'Name', value: clicked.name, confirm: 'Rename' })
       if (name && name !== clicked.name) await actions.setField([clicked.uid], 'name', name)
@@ -261,12 +284,17 @@ function LibraryView() {
     ? 'No environments yet. Add one with Add environment… above.'
     : listing.view.kind === 'collection' && !listing.search ? 'This collection is empty.' : 'Nothing here matches.'
   const { session, status, busy } = editing
-  const shown: Pile | 'lexicons' = listing.view.kind === 'lexicons' ? 'lexicons' : desk ? pile : 'low'
+  type Page = 'lexicons' | 'requisitions' | 'processes' | 'endpoints'
+  const page = isPage(listing.view) ? listing.view.kind as Page : null
+  const shown: Pile | Page = page || (desk ? pile : 'low')
   const pileCount = (value: Pile) => value === 'low' ? sidebar?.unidentified_dossiers : value === 'files' ? sidebar?.unattached_files : pending
   let heading: { title: string; text: string }
   if (shown === 'files') heading = { title: 'Unattached files', text: sidebar ? `${plural(sidebar.unattached_files, 'file')} no asset holds, as of the last scans` : 'Counting…' }
   else if (shown === 'suggestions') heading = { title: 'Suggestions', text: pending === null ? 'Counting…' : `${plural(pending, 'pending suggestion')}: accept or reject them in batches` }
   else if (shown === 'lexicons') heading = { title, text: 'The word lists scans tag, group and name assets with' }
+  else if (shown === 'requisitions') heading = { title, text: queueCount === null ? 'Reading…' : `${plural(queueCount, 'requisition')} waiting, running or needing attention` }
+  else if (shown === 'processes') heading = { title, text: 'What converts assets for requisitions, and what each needs' }
+  else if (shown === 'endpoints') heading = { title, text: 'Where requisitions write in each environment' }
   else heading = { title: listing.parent ? listing.parent.name : title,
     text: total === null ? 'Loading…' : `${plural(total, one, many)}${listing.search ? ` matching “${listing.search}”` : ''}${selectedUids.size > 1 ? ` · ${selectedUids.size.toLocaleString()} selected` : ''}` }
 
@@ -298,10 +326,10 @@ function LibraryView() {
       <button type="button" className="library-button" onClick={stopJob}
         title={writer.kind === 'classify' ? 'Stop: nothing of it is saved' : 'Stop: everything finished so far is saved'}>Stop</button>
     </div>}
-    <div className={`library-body ${shown === 'lexicons' ? 'wide' : ''}`}>
+    <div className={`library-body ${page ? 'wide' : ''}`}>
       <Sidebar data={sidebar} collections={collections} error={side.error || ''} view={listing.view} choose={choose}
         newCollection={() => void newCollection()} collectionMenu={collectionMenu}
-        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)}
+        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)} queue={queueCount}
         dropOnCollection={(collection, uids) => void actions.members(collection.uid, uids, true)} />
       <section className="library-browser" aria-label="Browser">
         <header className="library-heading">
@@ -315,7 +343,7 @@ function LibraryView() {
           {desk ? <div className="library-group library-piles" role="group" aria-label="Unidentified desk">
             {PILES.map(({ pile: value, label }) => <button key={value} type="button" aria-pressed={pile === value} onClick={() => setPile(value)}>
               {label} <small>{pileCount(value)?.toLocaleString() ?? ''}</small></button>)}
-          </div> : shown !== 'lexicons' && <div className="library-group" role="group" aria-label="Group by">
+          </div> : !page && <div className="library-group" role="group" aria-label="Group by">
             {(['product', 'type'] as const).map(value => <button key={value} type="button" aria-pressed={listing.group === value}
               disabled={!!listing.parent || grouping !== listing.group} onClick={() => group(value)}
               title={grouping === 'all' ? 'Searches, dossier types, collections and Unidentified list every asset' : undefined}>
@@ -324,18 +352,23 @@ function LibraryView() {
         </header>
         {shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say}
           apply={applyLexicons} busy={!!writer} />
+          : shown === 'requisitions' ? <Queue key={generation} revision={revisions.edits + queueReads} busy={!!writer} changed={() => setQueueReads(n => n + 1)}
+            say={editing.say} run={runQueue} removeOutput={removeOutput} />
+          : shown === 'processes' ? <Processes key={generation} say={editing.say} />
+          : shown === 'endpoints' ? <Endpoints key={generation} say={editing.say} />
           : shown === 'files' ? <Unattached key={generation} revision={revisions.side} actions={actions} show={show} />
             : shown === 'suggestions' ? <Suggestions key={generation} revision={revisions.edits} actions={actions} show={show} />
               : <Browser key={key} pages={pages} selected={selectedUids} focus={selected.focus} empty={empty}
                 select={select} selectAll={selectAll} open={openSet} menu={(x, y, brick) => void cardMenu(x, y, brick)} dragged={dragged} drop={drop} />}
       </section>
-      {shown !== 'lexicons' && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual} />}
+      {!page && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual} />}
     </div>
     <footer className={`library-statusline ${status?.error ? 'error' : ''}`} role="status" aria-live="polite">
       {status?.text || (changed.size && sidebar ? `Changes detected in ${sidebar.environments.filter(e => changed.has(e.id)).map(e => e.name).join(', ')} · Rescan changed when you’re ready`
         : 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.')}
     </footer>
     {wizard && <Wizard jobs={jobs} close={() => setWizard(false)} reviewUnidentified={() => choose({ kind: 'unidentified' })} />}
+    {requisition && <RequisitionDialog uids={requisition.uids} title={requisition.title} close={() => setRequisition(null)} queued={queued} />}
     {settingsOf !== null && <EnvironmentSettings id={settingsOf} close={() => setSettingsOf(null)} say={editing.say} />}
   </div>
 }
