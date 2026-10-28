@@ -1,14 +1,18 @@
 # Exchange Shell: progress and handoff
 
-## Game data model (2026-10-24)
+## The restart (2026-10-28)
 
-Records (compiled game data, with maturity) are now separate from claims (work, with status).
-See the Exchange repository's docs/OVERVIEW.md for how the parts connect, docs/IDENTITY.md (v2) for
-the amendment, and docs/GAME_DATA_MODEL.md for the record and claim design. Phase 7 builds the
-first slice: project home files, schemas for NPC_, RACE, FACT and LOT_, validation, gap claims and
-fast capture. Those docs live in the Exchange repository only.
+Exchange is refocused on one loop: Exchange notices an asset, Luke claims it ("this thing, as this,
+in that place"), Exchange finds or builds the path, and it lands milestone by milestone. The scope
+is asset conversion. The Exchange repository's `docs/VISION.md` is the brief and
+`docs/RESTART_PLAN.md` the plan; the identity, overview and game data model docs are archived there
+under `docs/archive/`.
 
-Last updated 2026-10-25. Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
+For this repository: the Workspace carries the loop. Next are 6j (parity, then the PySide6 window
+removed; R2) and claims in the Workspace (R5). The Chats window and 7c's checkpoint stay as they
+are, with no new features; game data is frozen.
+
+Last updated 2026-10-28 (the restart; the state below is from 2026-10-25). Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -18,13 +22,13 @@ is kept out of Git because this repository is public.
 
 Read this first, then these files in the Exchange repository:
 
-- `docs/OVERVIEW.md`: how the parts connect.
-- `docs/IDENTITY.md`: what Exchange is for.
-- `docs/GAME_DATA_MODEL.md`: records and claims. Where it and the spec disagree, it wins.
-- `docs/DESIGN_SPEC.md`: how it works, and the source of truth. Use its terms
-  exactly. For this repository the relevant sections are *Workspace and agents*,
-  *User interface* and *Architecture* (including *The fork*).
-- `docs/PROGRESS.md`: the core's handoff doc, in particular *Design pivot*.
+- `docs/VISION.md`: what Exchange is for, the loop, the scope and the decisions. It wins
+  where anything else disagrees.
+- `docs/RESTART_PLAN.md`: the current plan (R1-R7).
+- `docs/DESIGN_SPEC.md`: how the built parts work. Use its terms exactly. For this
+  repository the relevant sections are *Workspace and agents*, *User interface* and
+  *Architecture* (including *The fork*).
+- `docs/PROGRESS.md`: the core's handoff doc, in particular *The restart*.
 
 Then this repository's [AGENTS.md](../AGENTS.md) (working rules) and
 [desktop/README.md](../desktop/README.md) (architecture and checks).
@@ -126,7 +130,7 @@ Phase 5, approved 2026-10-24:
    `merge -s ours --allow-unrelated-histories` links the two histories without
    changing files or force-pushing.
 3. **Loose docs:** `docs/USEFUL_PATHS.md` is gitignored. Exchange's
-   `IDENTITY.md` and `DESIGN_SPEC.md` are not copied here; this doc links to
+   `VISION.md` and `DESIGN_SPEC.md` are not copied here; this doc links to
    them. `KICKOFF_PROMPT.md` stays untracked, as in Exchange.
 4. **Speech:** all in-app speech goes, including free local Whisper dictation,
    read-aloud and the `voice-dictation-setup` skill. It can come back later.

@@ -6,8 +6,8 @@ Exchange core is a separate Python repository; its path is in
 `docs/USEFUL_PATHS.md` (local only, not in Git).
 
 Read `docs/EXCHANGE_PROGRESS.md` first: the plan, decisions, how we work and
-the current state. Then the core repository's `docs/IDENTITY.md` and
-`docs/DESIGN_SPEC.md` (the source of truth; use its terms exactly), and
+the current state. Then the core repository's `docs/VISION.md` (the brief) and
+`docs/DESIGN_SPEC.md` (how the built parts work; use its terms exactly), and
 `desktop/README.md` for the architecture and checks.
 
 ## Working rules
