@@ -30,10 +30,11 @@ subscriptions and makes no paid calls of its own.
 
 ## Status
 
-Roadmap phase 5, "Chats online", is in progress. Phase 6 rebuilds the Workspace
-window on the Exchange service's local API. The plan, decisions and current state
-are in [docs/EXCHANGE_PROGRESS.md](docs/EXCHANGE_PROGRESS.md); what Exchange is
-for and how it works are in the core repository's `docs/IDENTITY.md` and
+The Chats window is done, and the Workspace window runs on the Exchange
+service's local API, with 6j (parity with the old window) left. The plan,
+decisions and current state are in
+[docs/EXCHANGE_PROGRESS.md](docs/EXCHANGE_PROGRESS.md); what Exchange is for and
+how it works are in the core repository's `docs/VISION.md` and
 `docs/DESIGN_SPEC.md`.
 
 ## Quick start
