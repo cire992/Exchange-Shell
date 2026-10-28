@@ -24,6 +24,7 @@ import { Handoffs } from './handoff.mjs';
 import { chatCommands } from './chat-commands.mjs';
 import { ExchangeCore } from './exchange/core.mjs';
 import { checkpointCommand as defaultCheckpointCommand, takeCheckpoint } from './exchange/checkpoint.mjs';
+import { openableFile } from './exchange/open-file.mjs';
 import { existsSync } from 'node:fs';
 
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)); });
@@ -314,6 +315,9 @@ export async function createService({ repo, uiDir, stateDir, token = secret(), n
         if (method === 'POST' && url.pathname === '/api/reveal') {
           const file = await realpath(path.resolve(data.path));
           native({ type: 'reveal', path: file }); return json(response, 200, { requested: true });
+        }
+        if (method === 'POST' && url.pathname === '/api/open-file') {
+          native({ type: 'open-file', path: await openableFile(data.path) }); return json(response, 200, { requested: true });
         }
         throw Object.assign(new Error('Endpoint not found'), { status: 404 });
       }

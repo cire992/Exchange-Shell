@@ -207,6 +207,9 @@ export interface Entry {
 
 export interface EntryFile {
   id: number
+  /** With `key`, the file as a FileRef, for linking it elsewhere */
+  root: number
+  key: string
   rel_path: string
   /** Absolute path on this PC */
   path: string

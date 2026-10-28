@@ -10,6 +10,9 @@
 // Edits (the core's write API, 6e) change it in memory: each edit keeps a snapshot of the library
 // before it, which Undo restores (and Redo the one after). Setting a field to "__busy__" answers
 // like a library a scan is writing to (503).
+//
+// Each asset has one file. Its path is made up (D:/Library/...) unless FAKE_CORE_FILE_ROOT names a
+// folder, where a test can put real files for Show in folder and Open in app.
 
 const daz = { id: 1, name: 'Daz Studio', type_id: 'daz_studio', roots: [{ id: 1, path: 'D:/Library', status: 'online' }], user_config: { visibility: 'personal' }, layer_config: {} };
 const loose = { id: 2, name: 'Loose files', type_id: 'loose_files', roots: [{ id: 2, path: 'E:/Sketchfab', status: 'online' }, { id: 3, path: 'F:/Old drive', status: 'offline' }], user_config: {}, layer_config: {} };
@@ -82,6 +85,10 @@ const byName = (a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.na
 const unidentified = d => d.confidence < 0.5;
 const envOf = d => containers[d.container].env;
 const live = d => !d.alias;
+const FILE_ROOT = (process.env.FAKE_CORE_FILE_ROOT || 'D:/Library').replace(/\\/g, '/');
+const ownFile = d => `${d.scannedName}${d.format || '.dsx'}`;
+// A file ref (root, key) to an asset's own file, as the drop menu's "Link their files" sends them.
+const ownFileRef = ref => lib.dossiers.some(d => live(d) && envOf(d).roots[0].id === ref.root && ownFile(d).toLowerCase() === ref.key) ? { linked: false } : null;
 const childrenOf = d => lib.dossiers.filter(x => live(x) && x.parent === d.uid);
 const scannedTags = d => d.type_id === 'static_mesh' ? ['prop'] : ['clothing'];
 const tagsOf = d => [...scannedTags(d).filter(t => !d.tagsRemove.includes(t)), ...d.tagsAdd.filter(t => !scannedTags(d).includes(t))];
@@ -276,7 +283,7 @@ export function detail(uid) {
     variant: null, thumbnail_url: d.thumbnail ? `/api/v1/dossiers/${d.uid}/thumbnail` : null,
     parent: parent ? ref(parent) : null, children: childrenOf(d).map(ref),
     ledgers: [{ environment: { id: env.id, name: env.name, type_id: env.type_id }, entries: [{ id: 1, container: container.name, container_kind: container.kind, status: 'origin', created_at: d.acquired, files: [
-      { id: 1, rel_path: `${d.scannedName}${d.format || '.dsx'}`, path: `D:/Library/${d.scannedName}${d.format || '.dsx'}`, size: 48213, role: 'primary', state: 'present' }] }] }],
+      { id: 1, root: env.roots[0].id, key: ownFile(d).toLowerCase(), rel_path: ownFile(d), path: `${FILE_ROOT}/${ownFile(d)}`, size: 48213, role: 'primary', state: 'present' }] }] }],
     dependencies: parent ? [{ reference: '/data/missing/texture.png', status: 'broken', target: null }, { reference: `/data/${parent.name}.dsf`, status: 'ok', target: ref(parent) }] : [],
     required_by: [], history: [{ id: null, at: d.acquired, action: 'entry_added', payload: { environment: env.name, container: container.name }, undoable: false }, ...d.history],
     variants: d.variants, aliases: lib.dossiers.filter(x => x.alias === d.uid).map(ref),
@@ -396,7 +403,7 @@ const edits = {
   },
   'edits/link-files': ({ uid, files = [], folder = null }) => {
     one(uid);
-    const found = [...files.map(ref => lib.files.find(f => f.root === ref.root && f.rel_key === ref.key && !f.linked)), ...(folder ? folderFiles(folder) : [])];
+    const found = [...files.map(ref => lib.files.find(f => f.root === ref.root && f.rel_key === ref.key && !f.linked) || ownFileRef(ref)), ...(folder ? folderFiles(folder) : [])];
     if (!found.length || found.some(f => !f)) throw new Refused(404, 'no file to link');
     return record('link_files', `link ${folder ? 'a folder' : found.length === 1 ? '1 file' : `${found.length} files`}`, 'all', [uid], () => {
       for (const f of found) f.linked = true;

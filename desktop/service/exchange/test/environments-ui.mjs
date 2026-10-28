@@ -57,9 +57,12 @@ try {
   await expect(rescan).toHaveText('Rescan');
   await expect(sidebar.getByText('changed', { exact: true })).toHaveCount(0);
 
-  // Rescan everything, and stop it: what finished is kept.
-  await rescan.click();
+  // Rescan everything with F5 (as the button does; the page doesn't reload), and stop it: what
+  // finished is kept.
+  await heading.locator('h2').click();
+  await page.keyboard.press('F5');
   await expect(bar).toBeVisible();
+  await expect(heading).toContainText('products and standalone assets');
   if (shots) await page.screenshot({ path: path.join(shots, 'environments-scanning.png') });
   await bar.getByRole('button', { name: 'Stop' }).click();
   await expect(status).toHaveText('Stopped; everything finished before that is saved.');

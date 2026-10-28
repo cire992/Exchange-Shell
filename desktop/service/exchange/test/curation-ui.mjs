@@ -2,10 +2,11 @@
 // library with its in-memory edits (fake-library.mjs): editing in the inspector with revert
 // markers, tags, collections, Undo and Redo (buttons and keys), multi-select and bulk edit, the
 // card menu, dialogs, dragging cards onto cards and collections, suggestions, history, and a busy
-// library. Run after npm run build. Optional: SCREENSHOTS=<folder>.
+// library; Show in folder and Open in app (R2a), the drop menu's Link their files, and Ctrl+F.
+// Run after npm run build. Optional: SCREENSHOTS=<folder>.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createService } from '../../server.mjs';
@@ -20,10 +21,15 @@ const repo = await mkdtemp(path.join(root, '.cache/exchange-curation-ui-'));
 const core = path.join(repo, 'core'); await mkdir(core);
 await mkdir(path.join(repo, '.mrmak'));
 await writeFile(path.join(repo, '.mrmak/settings.json'), JSON.stringify({ exchangeCore: core }));
-const exchange = new ExchangeCore({ command: ({ core }) => ({ file: process.execPath, args: [path.join(here, 'fake-core.mjs')], cwd: core, env: { FAKE_CORE_LIBRARY: '1' } }) });
+// The assets' files: Dwarf Helmet's is on disk, the others are not.
+const files = path.join(repo, 'files'); await mkdir(files);
+await writeFile(path.join(files, 'Dwarf Helmet.glb'), 'glTF');
+const helmetFile = await realpath(path.join(files, 'Dwarf Helmet.glb'));
+const exchange = new ExchangeCore({ command: ({ core }) => ({ file: process.execPath, args: [path.join(here, 'fake-core.mjs')], cwd: core, env: { FAKE_CORE_LIBRARY: '1', FAKE_CORE_FILE_ROOT: files } }) });
+const native = []; // what the service asks of the desktop app: Explorer, a file's app
 let service, browser;
 try {
-  service = await createService({ repo, uiDir: path.join(root, 'dist'), mcpOptions: { home: repo, env: {} }, exchange, startExchange: true });
+  service = await createService({ repo, uiDir: path.join(root, 'dist'), mcpOptions: { home: repo, env: {} }, exchange, startExchange: true, native: event => native.push(event) });
   browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1500, height: 940 } });
   page.setDefaultTimeout(10000);
@@ -132,6 +138,36 @@ try {
   await page.keyboard.press('Control+z');
   await expect(heading).toContainText('2,300 products');
 
+  // The drop menu also links the dragged asset's files onto the target (e.g. textures onto a mesh).
+  await card('Barrel 101').dragTo(card('Barrel 1051'));
+  await page.getByRole('menu', { name: 'Drop onto Barrel 1051' }).getByRole('menuitem', { name: 'Link their files to “Barrel 1051”' }).click();
+  await expect(status).toHaveText('Done: link 1 file · Ctrl+Z undoes it');
+  await page.keyboard.press('Control+z');
+  await expect(status).toHaveText('Undone: link 1 file');
+
+  // Ctrl+F goes to the search. Show in folder and Open in app hand the asset's file to the desktop
+  // app (Explorer, the file's Windows app); a file not on disk says so.
+  await card('Barrel 1051').click();
+  await page.keyboard.press('Control+f');
+  await expect(search).toBeFocused();
+  await find('dwarf', '1 asset');
+  await card('Dwarf Helmet').click({ button: 'right' });
+  const helmetMenu = page.getByRole('menu', { name: 'Actions for Dwarf Helmet' });
+  await expect(helmetMenu.getByRole('menuitem', { name: 'Show in folder' })).toHaveAttribute('title', `${files.replace(/\\/g, '/')}/Dwarf Helmet.glb`);
+  await helmetMenu.getByRole('menuitem', { name: 'Show in folder' }).click();
+  await expect.poll(() => native.find(event => event.type === 'reveal')?.path).toBe(helmetFile);
+  await card('Dwarf Helmet').click({ button: 'right' });
+  await page.getByRole('menu', { name: 'Actions for Dwarf Helmet' }).getByRole('menuitem', { name: 'Open in app' }).click();
+  await expect.poll(() => native.find(event => event.type === 'open-file')?.path).toBe(helmetFile);
+  await find('barrel 1001', '1 asset');
+  await card('Barrel 1001').click({ button: 'right' });
+  await page.getByRole('menu', { name: 'Actions for Barrel 1001' }).getByRole('menuitem', { name: 'Open in app' }).click();
+  await expect(status).toHaveText('Barrel 1001.glb is not on disk: rescan its environment.');
+  await expect(status).toHaveClass(/error/);
+  assert.equal(native.filter(event => event.type === 'open-file').length, 1);
+  await search.fill('');
+  await expect(heading).toContainText('2,300 products');
+
   // Collections from the sidebar: create, drop cards on it, delete from its menu, undo.
   await sidebar.getByRole('button', { name: 'New collection' }).click();
   await page.getByRole('dialog', { name: 'New collection' }).getByRole('textbox', { name: 'Name' }).fill('Keepers');
@@ -175,5 +211,5 @@ try {
   await expect(status).toHaveClass(/error/);
   if (shots) await page.screenshot({ path: path.join(shots, 'curation-busy.png') });
   assert.deepEqual(errors, []);
-  console.log('Exchange curation UI passed: inspector edits with revert, tags, collections, Undo/Redo by button and key, multi-select and bulk edit, the card menu and dialogs, drag onto cards and collections, not an asset, suggestions, history and a busy library.');
+  console.log('Exchange curation UI passed: inspector edits with revert, tags, collections, Undo/Redo by button and key, multi-select and bulk edit, the card menu and dialogs, drag onto cards and collections, linking files, Show in folder and Open in app, Ctrl+F, not an asset, suggestions, history and a busy library.');
 } finally { await browser?.close(); await service?.close(); }

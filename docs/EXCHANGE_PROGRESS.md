@@ -66,8 +66,10 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | 6f, part 2 (#12) | The Unidentified desk's other piles (unattached files, suggestions) and the lexicon editor | merged |
 | 6h (#13) | Environments and scanning: the add-environment wizard, rescans with a scan bar and Stop, change notices, environment settings, Apply to library | merged |
 | 6i (#14) | Requisitions: Requisition to…, the queue, Settings › Processes and Endpoints | merged into 6h's branch; onto `main` with #16 |
-| #15 | Fix a timing flake in the handoff tests (a CI run on #14 failed on it) | in review |
-| #16 | 6i onto `main` (#14 was stacked on #13, and merged into its base branch), with this doc brought up to date | in review |
+| #15 | Fix a timing flake in the handoff tests (a CI run on #14 failed on it) | merged |
+| #16 | 6i onto `main` (#14 was stacked on #13, and merged into its base branch), with this doc brought up to date | merged |
+| #17 | The restart (R1): the reading list points at the core's VISION.md | merged |
+| R2a | 6j's parity gaps: Show in folder, Open in app, the drop menu's Link their files, Ctrl+F and F5 (with cire992/3dExchange's file refs) | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`,
 except 6i, stacked on 6h.
@@ -733,6 +735,32 @@ generated from its schema. Stacked on 6h (its job tracking and scan bar). As the
   There were no page errors. The core's test fixtures' FBX and GLB files are placeholders Blender
   cannot read: requisitions of them failed, and the queue showed Blender's message.
 
+### R2a: the parity gaps (6j)
+
+The core's `docs/PARITY_CHECKLIST.md` compares every menu, button, shortcut and drop target of the
+PySide6 window with the Workspace. Four gaps are closed here; three are accepted there.
+
+- **Show in folder** and **Open in app** on a card's menu, for one asset: its file is the first live
+  entry's primary file, else its first file (the window's `primary_path`). The item's tooltip is the
+  path; it is disabled when the asset has no file.
+  - Show in folder uses the existing `/api/reveal` (Explorer, the file selected).
+  - Open in app is `POST /api/open-file`: `desktop/service/exchange/open-file.mjs` checks the file
+    (an absolute path, on disk, not a folder, and not a program or shortcut: `.exe`, `.bat`, `.lnk`,
+    `.ps1` and the like are refused, since opening them would run them), then the desktop app opens
+    it with `ShellExecuteW` (`src-tauri/src/exchange_files.rs`, which checks again). It runs there,
+    outside the service's process job, so the app stays open when the shell closes.
+- **Link their files to "…"** on the drop menu: the dragged assets' live files, read from their
+  details, go to `edits/link-files` (e.g. textures onto a mesh). Each file in a detail now has
+  `root` and `key`, its file ref (the core's R2a).
+- **Ctrl+F** focuses and selects the search; **F5** rescans like the Rescan button (changed
+  environments if any, else all). F5 never reloads the Workspace, and does nothing while a scan runs
+  or a dialog is open.
+- **Tests:** `open-file.test.mjs` (the checks and the route); `curation-ui.mjs` (the drop menu's
+  link with Undo, Ctrl+F, Show in folder and Open in app against real files through
+  `FAKE_CORE_FILE_ROOT`, a missing file); `environments-ui.mjs` rescans with F5; a Rust test refuses
+  folders, programs and shortcuts. The fake library's details give file refs, and its link-files
+  takes an asset's own file.
+
 ## Known gaps and next candidates
 
 - **Kimi resume is unverified.** Kimi Code 2.x creates its session only on the
@@ -750,11 +778,11 @@ generated from its schema. Stacked on 6h (its job tracking and scan bar). As the
 - **Library view (6d):**
   - It does not hear about scans or edits made elsewhere (the PySide6 window, the CLI); use Refresh.
     Scans started in the Workspace refresh it themselves.
-  - Not yet in the Workspace:
-    - "show candidates" (the window's candidates for an asset) and a Requisition to… button in the
-      inspector (it is in the card menu)
-    - linking files onto an asset from Explorer, Show in folder and Open in app
-    - sorting other than by name or type
+  - Not in the Workspace, accepted for 6j (`PARITY_CHECKLIST.md` in the core says why): dropping
+    files from Explorer onto a card (the desk links scanned files), dropping a folder on the wizard
+    (it has Browse…), and a Requisition to… button in the inspector (it is on the card menu).
+  - Not in either window, so spec features rather than parity: "show candidates" and sorting other
+    than by name or type.
 - `npm ci` reports two high-severity advisories in locked dependencies; not yet
   reviewed.
 - `.github/dependabot.yml` still opens weekly pull requests for workflow pins.
