@@ -38,6 +38,12 @@ test('a first message is one safe argument, placed before Claude\'s variadic --a
   } finally { process.env.PATH = previous; }
 });
 
+// Wait for what the handoff does in the background (it reads the transcript and writes a file,
+// which takes longer on a busy CI runner than on a dev machine).
+async function until(check, timeout = 5000) {
+  for (const end = Date.now() + timeout; !check() && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 10));
+}
+
 function fixture(reply) {
   const sessions = new EventEmitter(), inputs = [], created = [], opened = [], changes = [];
   const session = { id: 'old', agent: 'claude', name: 'Dream Game Combat', cwd: '/projects/game', bypass: false, effort: 'xhigh', status: 'running', activity: 'idle', completionVersion: 3, process: {} };
@@ -58,7 +64,7 @@ test('accepting a handoff asks the chat, saves its summary and opens a new chat 
   assert.equal(inputs.length, 1);
   sessions.emit('session', { id: 'old', status: 'running', completionVersion: 3 });
   sessions.emit('session', { id: 'old', status: 'running', completionVersion: 4 });
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await until(() => changes.includes('done') || changes.includes('failed'));
   assert.deepEqual(changes, ['summarizing', 'opening', 'done']);
   const job = handoffs.state('old');
   assert.equal(job.sessionId, 'new'); assert.deepEqual(opened, ['new']);
@@ -75,12 +81,12 @@ test('a handoff fails clearly when the chat stops or the reply has no summary', 
   const stopped = fixture('# Handoff');
   const first = new Handoffs({ repo, ...stopped, opened: () => {}, changed: () => {} });
   first.start('old'); stopped.sessions.emit('session', { id: 'old', status: 'exited', completionVersion: 3 });
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await until(() => first.state('old').error);
   assert.match(first.state('old').error, /stopped before/);
   const vague = fixture('I would rather keep going here.');
   const second = new Handoffs({ repo, ...vague, opened: () => {}, changed: () => {} });
   second.start('old'); vague.sessions.emit('session', { id: 'old', status: 'running', completionVersion: 4 });
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await until(() => second.state('old').status === 'failed');
   assert.equal(second.state('old').status, 'failed'); assert.match(second.state('old').error, /did not reply with a handoff/);
   assert.equal(vague.created.length, 0);
   vague.session.activity = 'working';
