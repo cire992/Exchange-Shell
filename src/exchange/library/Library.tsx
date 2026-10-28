@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useDesktop } from '../../desktop/client'
+import { api, useDesktop } from '../../desktop/client'
 import { exchangeGet, exchangePost, type Brick, type Choices, type Collection, type DossierRef, type Sidebar as SidebarData, type SidebarEnvironment } from '../api'
 import { libraryActions } from './actions'
+import { fileRefs, mainFile } from './files'
 import Browser, { type SelectMode } from './Browser'
 import { DialogProvider, useDialogs, type MenuItem } from './Dialogs'
 import { useEditing, useUndoKeys, type Refresh } from './editing'
@@ -108,6 +109,23 @@ function LibraryView() {
   const applyLexicons = (regroup: boolean) => void startJob(() => exchangePost('jobs/classify', { body: { regroup } }))
   const runQueue = (ids?: number[]) => void startJob(() => exchangePost('jobs/requisitions', { body: { ids: ids || null } }))
   const removeOutput = (id: number) => void startJob(() => exchangePost('jobs/remove-output', { body: { requisition: id } }))
+  // Ctrl+F searches and F5 rescans, as in the window. F5 never reloads the Workspace.
+  const searchBox = useRef<HTMLInputElement>(null)
+  const dialogOpen = wizard || requisition !== null || settingsOf !== null
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'F5') {
+        event.preventDefault()
+        if (!writer && !dialogOpen) rescan(changed.size ? [...changed] : [])
+      } else if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        searchBox.current?.focus()
+        searchBox.current?.select()
+      }
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  })
   const queued = (ids: number[], run: boolean) => {
     editing.say(`Queued ${ids.length} requisition${ids.length === 1 ? '' : 's'}${run ? ' · running' : ' · run it from Requisitions'}`)
     setQueueReads(n => n + 1)
@@ -208,6 +226,18 @@ function LibraryView() {
   const merge = async (uids: string[], into: string) => {
     for (const uid of uids) if (!(await actions.merge(uid, into))) break // one undo step each, as in the window
   }
+  const failed = (error: unknown) => editing.say(error instanceof Error ? error.message : String(error), true)
+  // Explorer and the file's Windows app, through the shell's service (outside the core).
+  const showInFolder = (path: string) => void api('/reveal', { path }).catch(failed)
+  const openInApp = (path: string) => void api('/open-file', { path }).catch(failed)
+  // The dragged assets' files onto the target (e.g. textures onto a mesh), as the window's files_of.
+  const linkFiles = async (target: Brick, uids: string[]) => {
+    const details = await Promise.all(uids.map(uid => exchangeGet('dossiers/{uid}', { path: { uid } }).catch(() => null)))
+    if (details.some(detail => !detail)) return editing.say('Could not read the dragged assets; Refresh and try again.', true)
+    const files = fileRefs(details.filter(detail => detail !== null))
+    if (!files.length) return editing.say(`${uids.length > 1 ? 'They have' : 'It has'} no files on disk to link`, true)
+    await actions.linkFiles(target.uid, files)
+  }
   const cardMenu = async (x: number, y: number, clicked: Brick) => {
     const uids = selectedUids.has(clicked.uid) && selectedUids.size ? [...selectedUids] : [clicked.uid]
     const many = uids.length > 1
@@ -230,11 +260,11 @@ function LibraryView() {
       const parent = listing.parent
       items.push({ label: `Take out of “${parent.name}”`, run: () => void actions.setParent(uids, null) })
     }
+    // Split, variants and the asset's file need its entries.
+    const detail = many ? null : await exchangeGet('dossiers/{uid}', { path: { uid: clicked.uid } }).catch(() => null)
     if (many) {
       items.push({ label: `Merge the others into “${clicked.name}”`, run: () => void merge(uids.filter(u => u !== clicked.uid), clicked.uid) })
     } else {
-      // Split and variants need the asset's entries.
-      const detail = await exchangeGet('dossiers/{uid}', { path: { uid: clicked.uid } }).catch(() => null)
       const live = detail ? detail.ledgers.flatMap(ledger => ledger.entries.filter(e => e.status !== 'retired').map(e => ({ e, env: ledger.environment.name }))) : []
       if (live.length > 1) items.push({ label: 'Split…', run: async () => {
         const entry = await dialogs.ask({ title: `Split ${clicked.name}`, label: 'The entry that becomes an asset of its own', confirm: 'Split',
@@ -249,6 +279,13 @@ function LibraryView() {
     }
     const dismissed = /\bis:dismissed\b/i.test(listing.search)
     items.push({ label: dismissed ? 'Count as an asset again' : 'Not an asset', run: () => void actions.dismiss(uids, !dismissed) })
+    if (!many) {
+      const file = detail && mainFile(detail)
+      const why = detail ? 'It has no file on disk' : 'Could not read the asset'
+      items.push({ label: '-' },
+        { label: 'Show in folder', disabled: !file, title: file ? file.path : why, run: () => { if (file) showInFolder(file.path) } },
+        { label: 'Open in app', disabled: !file, title: file ? file.path : why, run: () => { if (file) openInApp(file.path) } })
+    }
     dialogs.menu(x, y, items, `Actions for ${many ? `${uids.length} assets` : clicked.name}`)
   }
   // What dropping cards on another card can mean (the window's drop menu).
@@ -256,6 +293,7 @@ function LibraryView() {
     const n = plural(uids.length, 'asset')
     const items: MenuItem[] = []
     if (target.type_id === 'product') items.push({ label: `Put ${n} into “${target.name}”`, run: () => void actions.setParent(uids, target.uid) })
+    items.push({ label: `Link their files to “${target.name}”`, run: () => void linkFiles(target, uids) })
     items.push({ label: `Merge ${n} into “${target.name}” (the same asset)`, run: () => void merge(uids, target.uid) })
     if (uids.length === 1) items.push({ label: `Fold in as a variant of “${target.name}”…`, run: async () => {
       const variant = await dialogs.ask({ title: `A variant of ${target.name}`, label: 'Variant name (e.g. blue)', confirm: 'Fold in' })
@@ -301,7 +339,7 @@ function LibraryView() {
   return <div className="library">
     <header className="library-top">
       <form className="library-search" role="search" onSubmit={event => { event.preventDefault(); search(draft) }}>
-        <input value={draft} onChange={event => setDraft(event.target.value)} aria-label="Search the library" spellCheck={false}
+        <input ref={searchBox} value={draft} onChange={event => setDraft(event.target.value)} aria-label="Search the library" spellCheck={false} title="Ctrl+F"
           placeholder="Search: donut env:starfield tag:food -tag:damaged type:mesh" />
         {draft && <button type="button" className="library-clear" aria-label="Clear the search" onClick={() => { setDraft(''); search('') }}>×</button>}
       </form>
@@ -315,7 +353,7 @@ function LibraryView() {
         title={writer ? 'Wait for the scan to finish' : 'Add games, libraries and folders of assets'}>Add environment…</button>
       <button type="button" className={`library-button ${changed.size ? 'primary' : ''}`} disabled={!!writer}
         onClick={() => rescan(changed.size ? [...changed] : [])}
-        title={changed.size ? 'Rescan the environments that changed since they were last scanned' : 'Rescan every environment'}>
+        title={changed.size ? 'Rescan the environments that changed since they were last scanned (F5)' : 'Rescan every environment (F5)'}>
         {changed.size ? `Rescan changed (${changed.size})` : 'Rescan'}</button>
       <span className="library-connection" title={exchange.core || undefined}><i aria-hidden="true" />Connected · core {exchange.version} · API v{exchange.api}</span>
       <button type="button" className="library-button" onClick={() => setGeneration(n => n + 1)} title="Read the library again (after a scan or edits in the PySide6 window)">Refresh</button>

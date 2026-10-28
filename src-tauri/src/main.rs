@@ -4,6 +4,7 @@ use std::{fs, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, C
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
 use tauri_plugin_window_state::StateFlags;
 mod external_links;
+mod exchange_files;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 #[cfg(windows)]
@@ -488,6 +489,7 @@ fn main() {
                             }
                         },
                         "reveal" => { if let Some(file) = event["path"].as_str() { let _ = external_links::reveal_path(file); } },
+                        "open-file" => { if let Some(file) = event["path"].as_str() { exchange_files::open_file(file); } },
                         _ => {}
                     }
                 }

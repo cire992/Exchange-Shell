@@ -1,4 +1,4 @@
-import { exchangeDelete, exchangePost, type DeskFolder } from '../api'
+import { exchangeDelete, exchangePost, type DeskFolder, type FileRef } from '../api'
 import type { Editing } from './editing'
 
 // Every edit the library view makes, through the core's write API. Each returns the edit's result,
@@ -15,6 +15,7 @@ export function libraryActions(edit: Editing['edit']) {
     promote: (uid: string, variant: string) => edit(() => exchangePost('edits/promote-variant', { body: { uid, variant } })),
     newProduct: (name: string, children: string[]) => edit(() => exchangePost('edits/products', { body: { name, children } })),
     dismiss: (uids: string[], dismissed: boolean) => edit(() => exchangePost('edits/dismiss', { body: { uids, dismissed } })),
+    linkFiles: (uid: string, files: FileRef[]) => edit(() => exchangePost('edits/link-files', { body: { uid, files } })),
     newCollection: (name: string, query?: string | null) => edit(() => exchangePost('collections', { body: { name, query: query || null } })),
     deleteCollection: (uid: string) => edit(() => exchangeDelete('collections/{uid}', { path: { uid } })),
     members: (collection: string, uids: string[], present: boolean) =>
