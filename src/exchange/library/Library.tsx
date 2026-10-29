@@ -356,7 +356,7 @@ function LibraryView() {
         title={changed.size ? 'Rescan the environments that changed since they were last scanned (F5)' : 'Rescan every environment (F5)'}>
         {changed.size ? `Rescan changed (${changed.size})` : 'Rescan'}</button>
       <span className="library-connection" title={exchange.core || undefined}><i aria-hidden="true" />Connected · core {exchange.version} · API v{exchange.api}</span>
-      <button type="button" className="library-button" onClick={() => setGeneration(n => n + 1)} title="Read the library again (after a scan or edits in the PySide6 window)">Refresh</button>
+      <button type="button" className="library-button" onClick={() => setGeneration(n => n + 1)} title="Read the library again (after a scan or edits from the CLI)">Refresh</button>
     </header>
     {writer && <div className="library-jobbar" role="status" aria-label="Running job">
       <span>{describeProgress(writer)}</span>

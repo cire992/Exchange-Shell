@@ -8,11 +8,12 @@ is asset conversion. The Exchange repository's `docs/VISION.md` is the brief and
 `docs/RESTART_PLAN.md` the plan; the identity, overview and game data model docs are archived there
 under `docs/archive/`.
 
-For this repository: the Workspace carries the loop. Next are 6j (parity, then the PySide6 window
-removed; R2) and claims in the Workspace (R5). The Chats window and 7c's checkpoint stay as they
+For this repository: the Workspace carries the loop, and since 2026-10-29 it is the only window:
+6j is done, and the core removed the PySide6 window (R2c, cire992/3dExchange#33). Next is claims
+in the Workspace (R5). The Chats window and 7c's checkpoint stay as they
 are, with no new features; game data is frozen.
 
-Last updated 2026-10-28 (the restart; the state below is from 2026-10-25). Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
+Last updated 2026-10-29 (6j done: R2a here, R2c in the core). Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
 
 This repository is the desktop shell for Exchange, forked from
 [Mr. Mak Workspace](https://github.com/witnesstodark/mr-mak-workspace). The
@@ -39,9 +40,9 @@ Then this repository's [AGENTS.md](../AGENTS.md) (working rules) and
 check: Kimi's History restore (see Known gaps). **Phase 6, "Service and
 Workspace" (goal G4), is in progress** across both repositories; its plan and
 decisions are in the core's `docs/PROGRESS.md` (*Phase 6*). This repository does
-6c, 6d, 6f, 6h and 6i, all merged, and half of 6j. **Next: 6j**, a parity checklist of the
-PySide6 window's features against the Workspace, which the user signs off on a real library before
-the window is removed.
+6c, 6d, 6f, 6h and 6i, all merged, and its half of 6j (R2a). **6j is done:** the user signed off
+the parity checklist (the core's `docs/PARITY_CHECKLIST.md`) on 2026-10-29, and the core removed
+the PySide6 window (cire992/3dExchange#33). Phase 6 is complete.
 
 **Phase 7, part 1, "Project homes" (goal G5), is in progress**, planned in the core's
 `docs/PROGRESS.md` (*Phase 7*). Its only chunk here is 7c: the git checkpoint before bypassed
@@ -69,7 +70,8 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | #15 | Fix a timing flake in the handoff tests (a CI run on #14 failed on it) | merged |
 | #16 | 6i onto `main` (#14 was stacked on #13, and merged into its base branch), with this doc brought up to date | merged |
 | #17 | The restart (R1): the reading list points at the core's VISION.md | merged |
-| R2a | 6j's parity gaps: Show in folder, Open in app, the drop menu's Link their files, Ctrl+F and F5 (with cire992/3dExchange's file refs) | in review |
+| #18 | R2a, 6j's parity gaps: Show in folder, Open in app, the drop menu's Link their files, Ctrl+F and F5 (with cire992/3dExchange#30's file refs) | merged |
+| R2c | The PySide6 window is gone (cire992/3dExchange#33): this doc and the Refresh button say so | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`,
 except 6i, stacked on 6h.
@@ -776,7 +778,7 @@ PySide6 window with the Workspace. Four gaps are closed here; three are accepted
 - **Edits that link files are slow on a big library:** 3.5 to 7 s on the real Daz scan, because the
   core applies the file links of the whole root after each one (see 6f, part 2).
 - **Library view (6d):**
-  - It does not hear about scans or edits made elsewhere (the PySide6 window, the CLI); use Refresh.
+  - It does not hear about scans or edits made elsewhere (the CLI); use Refresh.
     Scans started in the Workspace refresh it themselves.
   - Not in the Workspace, accepted for 6j (`PARITY_CHECKLIST.md` in the core says why): dropping
     files from Explorer onto a card (the desk links scanned files), dropping a folder on the wizard
