@@ -5,7 +5,7 @@ import { exchangeGet, type Brick, type DossierRef } from '../api'
 // menus. Each prompt resolves to the answer, or null when cancelled.
 
 export interface MenuItem { label: string; run?: () => void; disabled?: boolean; title?: string; items?: MenuItem[] }
-interface Ask { title: string; label?: string; value?: string; confirm?: string; choices?: { label: string; value: string }[]; text?: string }
+interface Ask { title: string; label?: string; value?: string; confirm?: string; choices?: { label: string; value: string }[]; text?: string; optional?: boolean }
 interface Dialogs {
   ask: (options: Ask) => Promise<string | null>
   confirm: (title: string, text: string, confirm?: string) => Promise<boolean>
@@ -39,13 +39,13 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   </DialogContext.Provider>
 }
 
-function Prompt({ title, label, value = '', confirm = 'OK', choices, text, done }: Ask & { done: (value: string | null) => void }) {
+function Prompt({ title, label, value = '', confirm = 'OK', choices, text, optional, done }: Ask & { done: (value: string | null) => void }) {
   const [draft, setDraft] = useState(value || choices?.[0]?.value || '')
   const asksText = label !== undefined && !choices
   return <div className="library-scrim" onClick={() => done(null)}>
     <form className="library-dialog" role="dialog" aria-label={title} onClick={event => event.stopPropagation()}
       onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); done(null) } }}
-      onSubmit={event => { event.preventDefault(); if (!asksText || draft.trim()) done(asksText || choices ? draft.trim() : '') }}>
+      onSubmit={event => { event.preventDefault(); if (!asksText || optional || draft.trim()) done(asksText || choices ? draft.trim() : '') }}>
       <h3>{title}</h3>
       {text && <p>{text}</p>}
       {asksText && <label>{label}<input autoFocus value={draft} onChange={event => setDraft(event.target.value)} /></label>}
@@ -53,7 +53,7 @@ function Prompt({ title, label, value = '', confirm = 'OK', choices, text, done 
         {choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>}
       <div className="library-dialog-buttons">
         <button type="button" className="library-button" onClick={() => done(null)}>Cancel</button>
-        <button type="submit" className="library-button primary" autoFocus={!asksText && !choices} disabled={asksText && !draft.trim()}>{confirm}</button>
+        <button type="submit" className="library-button primary" autoFocus={!asksText && !choices} disabled={asksText && !optional && !draft.trim()}>{confirm}</button>
       </div>
     </form>
   </div>

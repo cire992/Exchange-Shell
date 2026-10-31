@@ -1,14 +1,15 @@
-import { exchangeGet, type Changes, type Job, type JobList } from '../api'
+import { exchangeGet, type Changes, type ClaimChanges, type Job, type JobList } from '../api'
 
 const WAIT = 20 // seconds the core holds a request open waiting for a change (it allows 25)
 const RETRY = 3000
 
-// The core's long jobs (Roadmap phases 6g and 6h) and its change notices, followed by version: each
+// The core's long jobs (Roadmap phases 6g and 6h), its change notices and claims, followed by version: each
 // request returns as soon as something changed, so progress arrives without polling in a loop.
 // Components read it through useSyncExternalStore (subscribe / getVersion).
 export class Jobs {
   jobs: Job[] = []
   changes: Changes = { available: false, environments: [], version: 0 }
+  claims: ClaimChanges = { available: false, version: 0 } // says a claim may have moved: list them again
   version = 0
   private listeners = new Set<() => void>()
   private finished = new Set<(job: Job) => void>()
@@ -19,6 +20,7 @@ export class Jobs {
   constructor() {
     void this.followJobs()
     void this.followChanges()
+    void this.followClaims()
   }
 
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
@@ -74,6 +76,21 @@ export class Jobs {
   private async ended(job: Job) {
     const whole = await exchangeGet('jobs/{job_id}', { path: { job_id: job.id } }).catch(() => job)
     for (const listener of this.finished) listener(whole)
+  }
+
+  private async followClaims() {
+    let since: number | null = null
+    while (!this.closed) {
+      try {
+        const claims: ClaimChanges = await exchangeGet('claims/changes', { query: { since, wait: since === null ? 0 : WAIT } })
+        if (this.closed) return
+        since = claims.version
+        this.claims = claims
+        this.changed()
+      } catch {
+        await delay(RETRY)
+      }
+    }
   }
 
   private async followChanges() {

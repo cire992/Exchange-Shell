@@ -3,10 +3,11 @@ import type { Query } from './pages'
 // What the browser lists: a sidebar choice, optionally a product opened from it, a search and a
 // grouping. The core lists everything (no product grouping) for searches, dossier types,
 // collections and Unidentified, as the PySide6 window does. The others are pages of their own:
-// the requisition queue, and Settings › Lexicons, Processes and Endpoints.
+// claims, the requisition queue, and Settings › Lexicons, Processes and Endpoints.
 export type View =
   | { kind: 'all' }
   | { kind: 'unidentified' }
+  | { kind: 'claims' }
   | { kind: 'lexicons' }
   | { kind: 'requisitions' }
   | { kind: 'processes' }
@@ -40,7 +41,7 @@ export type Pile = 'low' | 'files' | 'suggestions'
 export const PILES: { pile: Pile; label: string }[] = [{ pile: 'low', label: 'Low confidence' }, { pile: 'files', label: 'Unattached files' }, { pile: 'suggestions', label: 'Suggestions' }]
 
 /** A view that is a page of its own, not a listing of assets. */
-export const isPage = (view: View) => ['lexicons', 'requisitions', 'processes', 'endpoints'].includes(view.kind)
+export const isPage = (view: View) => ['claims', 'lexicons', 'requisitions', 'processes', 'endpoints'].includes(view.kind)
 
 export function effectiveGroup({ view, search, group }: Listing): Group | 'all' {
   return search.trim() || view.kind === 'type' || view.kind === 'collection' || view.kind === 'unidentified' ? 'all' : group
@@ -63,6 +64,7 @@ export function listingQuery(listing: Listing): Query {
 export function viewTitle(view: View): { crumb: string; title: string } {
   switch (view.kind) {
     case 'unidentified': return { crumb: 'Unidentified desk', title: 'Low confidence' }
+    case 'claims': return { crumb: 'Library', title: 'Claims' }
     case 'lexicons': return { crumb: 'Settings', title: 'Lexicons' }
     case 'requisitions': return { crumb: 'Library', title: 'Requisitions' }
     case 'processes': return { crumb: 'Settings', title: 'Processes' }

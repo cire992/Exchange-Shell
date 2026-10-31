@@ -10,7 +10,7 @@ under `docs/archive/`.
 
 For this repository: the Workspace carries the loop, and since 2026-10-29 it is the only window:
 6j is done, and the core removed the PySide6 window (R2c, cire992/3dExchange#33). Next is claims
-in the Workspace (R5). The Chats window and 7c's checkpoint stay as they
+in the Workspace (R5, in progress: the core's `docs/R5_PLAN.md`). The Chats window and 7c's checkpoint stay as they
 are, with no new features; game data is frozen.
 
 Last updated 2026-10-29 (6j done: R2a here, R2c in the core). Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
@@ -71,6 +71,7 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | #16 | 6i onto `main` (#14 was stacked on #13, and merged into its base branch), with this doc brought up to date | merged |
 | #17 | The restart (R1): the reading list points at the core's VISION.md | merged |
 | #18 | R2a, 6j's parity gaps: Show in folder, Open in app, the drop menu's Link their files, Ctrl+F and F5 (with cire992/3dExchange#30's file refs) | merged |
+| R5b | Claims in the Workspace, part 1: the Claims view (milestone gauge, whose turn, Waiting on you, a claim's detail, Close), the sidebar's count, `/claims/changes` followed in `Jobs`, types regenerated. Plan: the core's `docs/R5_PLAN.md`, built by hand (its decision 1 replaces the factory here) | in review |
 | R2c | The PySide6 window is gone (cire992/3dExchange#33): this doc and the Refresh button say so | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`,
