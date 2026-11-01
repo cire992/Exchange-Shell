@@ -22,7 +22,7 @@ interface Props {
 const count = (n: number | null | undefined) => n === null || n === undefined ? '' : n.toLocaleString()
 
 // Claims first, then the library, collections, and environments › containers or dossier types, as in
-// the PySide6 window's sidebar, with the requisition queue; then Settings: lexicons, processes and endpoints.
+// the PySide6 window's sidebar, with then Settings: Runs (the requisition queue), lexicons, processes and endpoints.
 export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection, changed, environmentMenu, addEnvironment, queue, claims }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (key: string) => setOpen(previous => ({ ...previous, [key]: !previous[key] }))
@@ -70,7 +70,6 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
     {item({ kind: 'claims' }, 'Claims', claims, claims ? 'warn' : '')}
     {item({ kind: 'all' }, 'All assets', data?.all)}
     {item({ kind: 'unidentified' }, 'Unidentified', data?.unidentified_dossiers, 'warn')}
-    {item({ kind: 'requisitions' }, 'Requisitions', queue)}
     <div className="library-sidebar-head" onContextMenu={event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, null) }}>
       <h2>Collections</h2>
       <button type="button" className="library-icon-button" title="New collection (right-click for a smart one from the search)" aria-label="New collection" onClick={newCollection}>+</button>
@@ -85,6 +84,7 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
         : !error && <><p className="library-muted">No environments yet.</p>
           <button type="button" className="library-link library-sidebar-add" onClick={addEnvironment}>Add environment…</button></>}
     <h2>Settings</h2>
+    {item({ kind: 'requisitions' }, 'Runs', queue)}
     {item({ kind: 'lexicons' }, 'Lexicons')}
     {item({ kind: 'processes' }, 'Processes')}
     {item({ kind: 'endpoints' }, 'Endpoints')}

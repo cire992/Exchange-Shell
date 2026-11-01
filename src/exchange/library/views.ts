@@ -66,7 +66,7 @@ export function viewTitle(view: View): { crumb: string; title: string } {
     case 'unidentified': return { crumb: 'Unidentified desk', title: 'Low confidence' }
     case 'claims': return { crumb: 'Library', title: 'Claims' }
     case 'lexicons': return { crumb: 'Settings', title: 'Lexicons' }
-    case 'requisitions': return { crumb: 'Library', title: 'Requisitions' }
+    case 'requisitions': return { crumb: 'Settings', title: 'Runs' }
     case 'processes': return { crumb: 'Settings', title: 'Processes' }
     case 'endpoints': return { crumb: 'Settings', title: 'Endpoints' }
     case 'collection': return { crumb: 'Collection', title: view.name }

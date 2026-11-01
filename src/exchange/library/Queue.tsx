@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { exchangeGet, exchangePost, type RequisitionDetail, type RequisitionRow, type ResumeRequest } from '../api'
+import { exchangeGet, exchangePost, type RequisitionDetail, type RequisitionRow } from '../api'
 import { useDialogs } from './Dialogs'
-import { shortDate } from './format'
+import { RESUMES, shortDate } from './format'
 
 // The requisition queue (Roadmap phase 6i), the PySide6 window's queue view: waiting and running
 // requisitions in order, then finished ones; the chosen one's items, outputs and files; and what
@@ -10,7 +10,6 @@ import { shortDate } from './format'
 
 const STATES: Record<string, string> = { queued: 'Queued', held: 'Held', running: 'Running', needs_attention: 'Needs attention', fulfilled: 'Fulfilled',
   partially_fulfilled: 'Partly fulfilled', failed: 'Failed', stale: 'Stale', removed: 'Removed', replaced: 'Replaced' }
-const RESUMES: [ResumeRequest['on_collision'], string][] = [[null, 'Resume'], ['overwrite', 'Resume, overwriting'], ['rename', 'Resume, renaming new files'], ['skip', 'Resume, skipping those files']]
 
 interface Props {
   revision: number // after jobs end and other edits

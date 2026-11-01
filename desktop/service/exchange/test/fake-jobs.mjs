@@ -33,6 +33,8 @@ export const view = (job, full = true) => ({ id: job.id, kind: job.kind, label: 
   started_at: job.started_at, finished_at: job.finished_at, progress: job.progress, error: job.error, version: job.version,
   report: full && ['scan', 'detect', 'rescan'].includes(job.kind) ? job.out : null, result: full && !['scan', 'detect', 'rescan'].includes(job.kind) ? job.out : null });
 
+export const jobEnded = new Set(); // called when a job ends
+
 export function start(kind, label, { writes, steps, finish, environments: envIds = [] }) {
   const running = [...jobs.values()].find(j => j.writes && j.state === 'running');
   if (writes && running) throw new Refused(409, `${running.label} is running; wait for it to finish, or stop it`);
@@ -45,6 +47,7 @@ export function start(kind, label, { writes, steps, finish, environments: envIds
     job.out = finish();
     job.state = 'done'; job.finished_at = new Date().toISOString();
     bump(job);
+    for (const heard of jobEnded) heard();
   }, STEP_MS);
   jobs.set(job.id, job);
   bump(job);

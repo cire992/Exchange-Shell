@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { exchangeGet, exchangePost, type ClaimDetail, type ClaimList, type ClaimView } from '../api'
+import { exchangeGet, exchangePost, type ClaimDetail, type ClaimList, type ClaimView, type ClaimWalked, type ResumeRequest } from '../api'
 import { useDialogs } from './Dialogs'
-import { claimNext as next, plural } from './format'
+import { claimNext as next, plural, RESUMES } from './format'
+import WalkDialog from './WalkDialog'
 
 // The Claims view (R5): one row per claim with its milestone gauge and whose turn it is, and the
-// chosen claim's path, notes and requisitions. The core derives all of it; this only shows it, and
-// reads again whenever the core says a claim may have moved.
+// chosen claim's path, notes and requisitions, with what its turn asks for: walk it, release or
+// resume its requisition, or set up a process. The core derives all of it; this only shows it, and
+// reads again whenever the core says a claim may have moved. Anything that queues also runs: a
+// requisition left queued with nothing running would read as Exchange's turn for ever.
 
 const MILESTONES = ['claimed', 'acquired', 'converted', 'installed']
 const LABELS: Record<string, string> = { claimed: 'Claimed', acquired: 'Acquired', converted: 'Converted', installed: 'Installed' }
@@ -16,6 +19,9 @@ type Filter = typeof FILTERS[number][0]
 interface Props {
   revision: number // grows when a claim may have moved
   focus: string | null // the claim to show first
+  busy: boolean // a job writes the library
+  setUp: () => void // go to Settings › Processes
+  reveal: (path: string) => void // show a folder in Explorer
   say: (text: string, error?: boolean) => void
 }
 
@@ -36,7 +42,7 @@ export function Gauge({ claim, wide = false }: { claim: ClaimView; wide?: boolea
   </span>
 }
 
-export default function Claims({ revision, focus, say }: Props) {
+export default function Claims({ revision, focus, busy, setUp, reveal, say }: Props) {
   const dialogs = useDialogs()
   const [list, setList] = useState<ClaimList | null>(null)
   const [filter, setFilter] = useState<Filter>(focus ? 'all' : 'open')
@@ -44,6 +50,7 @@ export default function Claims({ revision, focus, say }: Props) {
   const [detail, setDetail] = useState<ClaimDetail | null>(null)
   const [reads, setReads] = useState(0) // after an action here
   const [error, setError] = useState('')
+  const [walking, setWalking] = useState<ClaimDetail | null>(null) // Walk with options…
 
   useEffect(() => {
     let live = true
@@ -69,6 +76,30 @@ export default function Claims({ revision, focus, say }: Props) {
       setReads(n => n + 1)
     } catch (problem) { say(message(problem), true) }
   }
+  const act = async (work: () => Promise<unknown>, done: string) => {
+    try {
+      await work()
+      say(done)
+      setReads(n => n + 1)
+    } catch (problem) { say(message(problem), true) }
+  }
+  const run = (id: number) => exchangePost('jobs/requisitions', { body: { ids: [id] } })
+  const walked = (claim: ClaimView, result: ClaimWalked) => {
+    say(result.problem ? `Queued, not running: ${result.problem}` : `Walking ${name(claim)}`, !!result.problem)
+    setReads(n => n + 1)
+  }
+  const walk = async (claim: ClaimView) => {
+    try { walked(claim, await exchangePost('claims/{id}/walk', { path: { id: claim.id } })) } catch (problem) { say(message(problem), true) }
+  }
+  const release = (id: number) => void act(async () => {
+    await exchangePost('requisitions/{requisition_id}/hold', { path: { requisition_id: id }, body: { held: false } })
+    await run(id)
+  }, 'Released · running')
+  const resume = (id: number, onCollision: ResumeRequest['on_collision']) => void act(async () => {
+    await exchangePost('requisitions/{requisition_id}/resume', { path: { requisition_id: id }, body: { on_collision: onCollision } })
+    await run(id)
+  }, 'Resumed · running')
+  const resumeMenu = (id: number, x: number, y: number) => dialogs.menu(x, y, RESUMES.map(([collision, label]) => ({ label, run: () => resume(id, collision) })), 'Resume')
   const count = (value: Filter) => (list?.claims || []).filter(claim => matches(claim, value)).length
 
   return <div className="library-claims">
@@ -95,13 +126,42 @@ export default function Claims({ revision, focus, say }: Props) {
           </tr>)}</tbody>
         </table>}
       </div>
-      {detail && detail.id === selected && <Detail claim={detail} close={() => void close(detail)} />}
+      {detail && detail.id === selected && <Detail claim={detail} busy={busy} close={() => void close(detail)} setUp={setUp} reveal={reveal}
+        walk={() => void walk(detail)} walkOptions={() => setWalking(detail)} release={release} resume={resumeMenu}
+        run={id => void act(() => run(id), 'Running')} />}
     </div>
+    {walking && <WalkDialog id={walking.id} title={name(walking)} close={() => setWalking(null)} walked={result => walked(walking, result)} />}
   </div>
 }
 
-function Detail({ claim, close }: { claim: ClaimDetail; close: () => void }) {
+interface DetailProps {
+  claim: ClaimDetail
+  busy: boolean
+  close: () => void
+  setUp: () => void
+  reveal: (path: string) => void
+  walk: () => void
+  walkOptions: () => void
+  release: (id: number) => void
+  resume: (id: number, x: number, y: number) => void
+  run: (id: number) => void
+}
+
+function Detail({ claim, busy, close, setUp, reveal, walk, walkOptions, release, resume, run }: DetailProps) {
   const path = claim.path
+  const latest = claim.requisitions[claim.requisitions.length - 1]
+  const id = latest?.id ?? null, state = latest?.state ?? null
+  const stopped = state === 'needs_attention' || state === 'failed' || state === 'partially_fulfilled'
+  const open = !claim.closed
+  const canWalk = open && path.status === 'ready' && claim.milestone !== 'installed' && !['queued', 'running', 'held', 'needs_attention'].includes(state || '')
+  const [work, setWork] = useState<{ id: number; folder: string | null } | null>(null)
+  useEffect(() => {
+    if (!stopped || id === null) return
+    let live = true
+    exchangeGet('requisitions/{requisition_id}', { path: { requisition_id: id } }).then(value => { if (live) setWork({ id, folder: value.work_folder ?? null }) }).catch(() => {})
+    return () => { live = false }
+  }, [stopped, id])
+  const folder = stopped && work && work.id === id ? work.folder : null
   const rows: [string, string][] = [['As', claim.as || 'No role'], ['Place', claim.place_name || claim.place || 'Unknown'],
     ['Folder', claim.folder || 'The place’s default'], ['Path', path.processes.join(' → ') || path.problem || 'None'], ['Made', claim.created || 'Unknown']]
   if (claim.closed) rows.push(['Closed', claim.closed])
@@ -119,6 +179,17 @@ function Detail({ claim, close }: { claim: ClaimDetail; close: () => void }) {
         {r.message && <small>{r.message}</small>}
       </li>)}</ul>
     </>}
-    {!claim.closed && <div className="library-claims-actions"><button type="button" className="library-button" onClick={close}>Close…</button></div>}
+    <div className="library-claims-actions">
+      {canWalk && <button type="button" className="library-button primary" disabled={busy} onClick={walk}
+        title={busy ? 'Wait for the running job' : 'With the options last used'}>{claim.requisitions.length ? 'Walk again' : 'Walk'}</button>}
+      {canWalk && <button type="button" className="library-button" disabled={busy} onClick={walkOptions}>Walk with options…</button>}
+      {open && id !== null && state === 'held' && <button type="button" className="library-button primary" disabled={busy} onClick={() => release(id)}>Release</button>}
+      {open && id !== null && state === 'queued' && <button type="button" className="library-button primary" disabled={busy} onClick={() => run(id)}>Run it</button>}
+      {open && id !== null && stopped && <button type="button" className="library-button primary" disabled={busy} aria-haspopup="menu"
+        title="Continue after a checkpoint or a collision; failed items are retried" onClick={event => resume(id, event.clientX, event.clientY)}>Resume ▾</button>}
+      {open && folder && <button type="button" className="library-button" title={folder} onClick={() => reveal(folder)}>Show the work folder</button>}
+      {open && path.status === 'not_ready' && <button type="button" className="library-button primary" onClick={setUp}>Set up {path.process}</button>}
+      {open && <button type="button" className="library-button" onClick={close}>Close…</button>}
+    </div>
   </aside>
 }

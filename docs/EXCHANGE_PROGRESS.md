@@ -72,7 +72,8 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | #17 | The restart (R1): the reading list points at the core's VISION.md | merged |
 | #18 | R2a, 6j's parity gaps: Show in folder, Open in app, the drop menu's Link their files, Ctrl+F and F5 (with cire992/3dExchange#30's file refs) | merged |
 | R5b | Claims in the Workspace, part 1: the Claims view (milestone gauge, whose turn, Waiting on you, a claim's detail, Close), the sidebar's count, `/claims/changes` followed in `Jobs`, types regenerated. Plan: the core's `docs/R5_PLAN.md`, built by hand (its decision 1 replaces the factory here) | merged (#20) |
-| R5c | Claims in the Workspace, part 2: Claim… on the card menu and in the inspector, for one asset or several, with the core's preview of each path; a thing's claims in the inspector | in review |
+| R5c | Claims in the Workspace, part 2: Claim… on the card menu and in the inspector, for one asset or several, with the core's preview of each path; a thing's claims in the inspector | merged (#21) |
+| R5d | Claims in the Workspace, part 3: Walk, Walk with options… (the plan and forms now shared with Requisition to…), Claim and walk, what each turn asks (Release, Run it, Resume, Set up, Show the work folder); Requisitions becomes Runs, beside Settings | in review |
 | R2c | The PySide6 window is gone (cire992/3dExchange#33): this doc and the Refresh button say so | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`,

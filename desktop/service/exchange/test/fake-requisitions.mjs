@@ -104,11 +104,15 @@ function planOf(body) {
 }
 
 const row = r => { const env = environment(r.environment_id); return { ...r, environment: env?.name || '?', items: r.items_.filter(i => i.include).length, done: r.items_.filter(i => i.state === 'done').length }; };
-const detailOf = r => ({ ...row(r), items: r.items_.map(i => ({ ...i, include: i.include ? 1 : 0 })), writes: r.writes });
+const detailOf = r => ({ ...row(r), items: r.items_.map(i => ({ ...i, include: i.include ? 1 : 0 })), writes: r.writes,
+  work_folder: ['needs_attention', 'failed'].includes(r.state) ? `C:/Exchange/work/${r.uid}` : null });
 const active = r => ['queued', 'held', 'running', 'needs_attention'].includes(r.state);
 const ordered = () => [...requisitions.filter(active).sort((a, b) => a.position - b.position), ...requisitions.filter(r => !active(r)).sort((a, b) => b.id - a.id)];
 const find = id => { const r = requisitions.find(x => x.id === Number(id)); if (!r) throw new Refused(404, `no requisition ${id}`); return r; };
 const now = () => new Date().toISOString();
+
+export const meshProcessReady = () => ready(PACKAGES.convert_mesh);
+export const requisitionNow = id => { const r = requisitions.find(x => x.id === id); return r ? { state: r.state, message: r.message } : null; };
 
 export function getRequisitions(route, params, send) {
   if (route === 'processes') return send(200, { processes: Object.values(PACKAGES).filter(p => p.installed).map(processView), problems: [] }), true;

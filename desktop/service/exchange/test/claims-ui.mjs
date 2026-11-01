@@ -1,7 +1,7 @@
 // Claims in the Workspace (R5) in the real UI, against the fake core's claims (fake-claims.mjs): the
 // sidebar's count, the Claims view with its gauge and whose turn, the filters, a claim's detail,
 // closing one, a claim moving on its own, a file that can't be read, Claim… and a thing's claims in
-// the inspector. Run after npm run build.
+// the inspector, and walking: with options, a checkpoint, Release, Claim and walk. Run after npm run build.
 // Optional: SCREENSHOTS=<folder>.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -111,6 +111,25 @@ try {
   await prompt('Close the claim on Prop 0020?').getByRole('button', { name: 'Close claim' }).click();
   await expect(status).toHaveText('Closed the claim on Prop 0020');
 
+  // A process that isn't set up: the claim says so, and takes you there.
+  const core = (route, body) => page.evaluate(([route, body]) => fetch(`/api/exchange/${route}`, { method: 'POST', body: JSON.stringify(body),
+    headers: { Authorization: `Bearer ${sessionStorage.getItem('mrmak.token')}`, 'Content-Type': 'application/json' } }).then(response => response.json()), [route, body]);
+  await sidebar.getByRole('button', { name: /^All assets/ }).click();
+  await page.getByRole('textbox', { name: 'Search the library' }).fill('prop 0040');
+  await expect(heading).toContainText('1 asset matching');
+  await page.getByRole('listbox', { name: 'Assets' }).getByRole('option').first().click({ button: 'right' });
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Claim…' }).click();
+  await page.getByRole('dialog', { name: 'Claim' }).getByRole('combobox', { name: 'Place' }).selectOption('Daz Studio');
+  await expect(page.getByRole('dialog', { name: 'Claim' })).toContainText('Set up convert_mesh: fix Blender (not found)');
+  await expect(page.getByRole('dialog', { name: 'Claim' }).getByRole('button', { name: 'Claim and walk' })).toHaveCount(0);
+  await page.getByRole('dialog', { name: 'Claim' }).getByRole('button', { name: 'Claim', exact: true }).click();
+  await expect(status).toContainText('Claimed Prop 0040 for Daz Studio');
+  await sidebar.getByRole('button', { name: /^Claims/ }).click();
+  await row('Prop 0040').click();
+  await detail.getByRole('button', { name: 'Set up convert_mesh' }).click();
+  await expect(heading).toContainText('Processes');
+  await core('tools', { tool: 'blender', path: 'C:\\Blender\\blender.exe' });
+
   // Claim…: the path before anything is written, for a role, a place and a folder.
   const grid = page.getByRole('listbox', { name: 'Assets' });
   const card = name => grid.getByRole('option').filter({ has: page.locator('strong').getByText(name, { exact: true }) });
@@ -125,30 +144,31 @@ try {
   const dialog = page.getByRole('dialog', { name: 'Claim' });
   await expect(dialog.getByRole('heading', { level: 3 })).toHaveText('Claim Prop 0021');
   const place = dialog.getByRole('combobox', { name: 'Place' }), pathRow = dialog.getByRole('region', { name: 'Path' }).getByRole('row', { name: /Prop 0021/ });
-  const claimButton = dialog.getByRole('button', { name: 'Claim', exact: true });
+  const claimButton = dialog.getByRole('button', { name: 'Claim and walk' });
   await place.selectOption('Daz Studio');
   await expect(pathRow).toContainText('Convert mesh (Blender)');
   await expect(pathRow).toContainText('Walk it');
   await expect(dialog.locator('#library-claim-roles option')).toHaveCount(1);
   await place.selectOption('Loose files');
   await expect(pathRow).toContainText('This place already holds it: walking writes a second copy');
+  await expect(claimButton).toHaveCount(0); // a second copy is never the easy choice
   await place.selectOption('Daz Studio');
   await expect(pathRow).not.toContainText('already holds it');
   await dialog.getByRole('combobox', { name: 'As' }).fill('g8f_character');
   await expect(pathRow).toContainText('No path yet: a process has to be built');
-  await expect(claimButton).toBeEnabled(); // a claim with no path is still a claim: it says what to build
+  await expect(claimButton).toHaveCount(0); // no path, nothing to walk
+  await expect(dialog.getByRole('button', { name: 'Claim', exact: true })).toBeEnabled(); // it still says what to build
   await dialog.getByRole('textbox', { name: 'Folder' }).fill('../elsewhere');
   await expect(pathRow).toContainText('leaves Daz Studio');
-  await expect(claimButton).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Claim', exact: true })).toBeDisabled();
   await dialog.getByRole('textbox', { name: 'Folder' }).fill('');
   await dialog.getByRole('combobox', { name: 'As' }).fill('prop');
   await dialog.getByRole('textbox', { name: 'Note' }).fill('For the cantina.');
   await expect(pathRow).toContainText('Walk it');
   if (shots) await page.screenshot({ path: path.join(shots, 'claim-dialog.png') });
-  await claimButton.click();
+  await dialog.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(status).toHaveText('Claimed Prop 0021 for Daz Studio');
   await expect(dialog).toHaveCount(0);
-  await expect(sidebar.getByRole('button', { name: 'Claims 2' })).toBeVisible();
 
   // The inspector shows a thing's claims, and each opens in the Claims view.
   await card('Prop 0021').click();
@@ -170,9 +190,8 @@ try {
   await inspector.getByRole('button', { name: 'Claim 2…' }).click();
   await expect(dialog.getByRole('heading', { level: 3 })).toHaveText('Claim 2 assets');
   await expect(dialog.getByRole('region', { name: 'Path' }).getByRole('row')).toHaveCount(3);
-  await dialog.getByRole('button', { name: 'Claim 2' }).click();
+  await dialog.getByRole('button', { name: 'Claim 2', exact: true }).click();
   await expect(status).toContainText('Claimed 2 assets for');
-  await expect(sidebar.getByRole('button', { name: 'Claims 4' })).toBeVisible();
   await search.fill('dwarf helmet');
   await card('Dwarf Helmet').click();
   await inspector.getByRole('button', { name: 'Claim…' }).click();
@@ -180,6 +199,64 @@ try {
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
+  // Walk: at once, with the options last used; the gauge fills with no click.
+  await sidebar.getByRole('button', { name: /^Claims/ }).click();
+  await row('Prop 0021').click();
+  await expect(detail.getByRole('button', { name: 'Run it' })).toHaveCount(0);
+  await detail.getByRole('button', { name: 'Walk', exact: true }).click();
+  await expect(status).toContainText('Prop 0021');
+  await expect(row('Prop 0021')).toContainText('Close it, or take it into play', { timeout: 15000 });
+  await expect(row('Prop 0021').locator('.library-gauge i.on')).toHaveCount(4);
+  await expect(detail.getByRole('button', { name: 'Walk', exact: true })).toHaveCount(0);
+
+  // Walk with options…: the requisition dialog's plan and forms; a checkpoint, the work folder, Resume.
+  await row('Prop 0022').click();
+  await detail.getByRole('button', { name: 'Walk with options…' }).click();
+  const walking = page.getByRole('dialog', { name: 'Walk with options' });
+  await expect(walking.getByRole('heading', { level: 3 })).toHaveText('Walk Prop 0022');
+  const steps = walking.getByRole('region', { name: 'Options' });
+  await expect(steps.getByRole('combobox', { name: 'Format' })).toBeVisible();
+  await steps.getByRole('textbox', { name: 'Note' }).fill('review');
+  await expect(walking.getByText('1 item included')).toBeVisible();
+  if (shots) await page.screenshot({ path: path.join(shots, 'claim-walk.png') });
+  await walking.getByRole('button', { name: 'Walk', exact: true }).click();
+  await expect(walking).toHaveCount(0);
+  await expect(detail.getByRole('button', { name: /^Resume/ })).toBeVisible({ timeout: 15000 });
+  await expect(detail.getByRole('button', { name: 'Show the work folder' })).toBeVisible();
+  if (shots) await page.screenshot({ path: path.join(shots, 'claim-checkpoint.png') });
+  await detail.getByRole('button', { name: /^Resume/ }).click();
+  await page.getByRole('menu', { name: 'Resume' }).getByRole('menuitem', { name: 'Resume', exact: true }).click();
+  await expect(row('Prop 0022')).toContainText('Close it, or take it into play', { timeout: 15000 });
+
+  // A requisition queued with nothing running, and one held: the claim says what to do, in one click.
+  const queuedClaim = (await core('claims', { uid: 'mesh-23', environment: 1 })).id, again = await core(`claims/${queuedClaim}/walk`, { run: false, options: { convert_mesh: { note: '' } } }); // last used was 'review'
+  await row('Prop 0023').filter({ hasText: 'Exchange is on it' }).click();
+  await detail.getByRole('button', { name: 'Run it' }).click();
+  await expect(row('Prop 0023').filter({ hasText: 'Close it' })).toHaveCount(1, { timeout: 15000 });
+  const heldClaim = (await core('claims', { uid: 'mesh-25', environment: 1 })).id, held = await core(`claims/${heldClaim}/walk`, { run: false });
+  await core(`requisitions/${held.requisition.id}/hold`, { held: true });
+  await page.getByRole('button', { name: 'Refresh' }).click(); // holding isn't a change notice: the Runs page reads again itself
+  await expect(row('Prop 0025')).toContainText(`Release requisition ${held.requisition.id}`);
+  await row('Prop 0025').click();
+  await detail.getByRole('button', { name: 'Release' }).click();
+  await expect(row('Prop 0025')).toContainText('Close it, or take it into play', { timeout: 15000 });
+  assert.equal(again.problem, null);
+
+  // Claim and walk, from the dialog.
+  await sidebar.getByRole('button', { name: /^All assets/ }).click();
+  await search.fill('prop 0026');
+  await card('Prop 0026').click({ button: 'right' });
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Claim…' }).click();
+  await place.selectOption('Daz Studio');
+  await claimButton.click();
+  await expect(status).toContainText('Prop 0026');
+  await sidebar.getByRole('button', { name: /^Claims/ }).click();
+  await expect(row('Prop 0026')).toContainText('Close it, or take it into play', { timeout: 15000 });
+
+  // The queue is Runs now, at the bottom beside Settings.
+  await sidebar.getByRole('button', { name: /^Runs/ }).click();
+  await expect(heading).toContainText('Runs');
+
   assert.deepEqual(errors, []);
-  console.log('Exchange claims UI passed: the sidebar count, the Claims view (gauge, whose turn, filters, a file that cannot be read), a claim\'s detail, a claim moving on its own, closing, Claim… for one thing and several, and the inspector\'s claims.');
+  console.log('Exchange claims UI passed: the sidebar count, the Claims view (gauge, whose turn, filters, a file that cannot be read), a claim\'s detail, a claim moving on its own, closing, Claim… for one thing and several, the inspector\'s claims, walking, options, a checkpoint, Run it, Release, Claim and walk, and Runs.');
 } finally { await browser?.close(); await service?.close(); }
