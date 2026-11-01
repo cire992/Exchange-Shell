@@ -1,7 +1,9 @@
 // Claims for the fake core (the core's R4 API): a few canned claims, one for each kind of turn and
 // one closed, a file that can't be read, and change notices. POST test/claims/move stands in for a
-// claim moving on its own (a job ending, a hand edit).
+// claim moving on its own (a job ending, a hand edit). New claims: a static mesh has a path,
+// anywhere, with no role or as a prop; anything else has none.
 import { changed, waitFor } from './fake-jobs.mjs';
+import { detail, environment } from './fake-library.mjs';
 
 const path = (status, processes = [], problem = null) => ({ status, route: status === 'ready' ? 'convert' : null, processes, process: null, problem, source_entry_id: null });
 const claim = (id, thing, thing_name, place_name, milestone, turn, turn_line, extra = {}) => ({
@@ -22,6 +24,20 @@ let version = 0;
 const bump = () => { version++; changed(); };
 
 const row = ({ notes, requisitions, ...rest }) => rest;
+const slug = text => text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+function prepared({ uid, environment: place, as = null, folder = null, note = '' }) {
+  const d = detail(uid), env = environment(place);
+  if (!d) throw { status: 404, message: `no dossier '${uid}' in the library` };
+  if (!env) throw { status: 404, message: `no environment ${place} in the library` };
+  if (folder?.includes('..')) throw { status: 400, message: `the folder ${folder} leaves ${env.name}: a relative folder must stay inside the place; give an absolute one to write elsewhere` };
+  const ready = d.type_id === 'static_mesh' && (!as || as === 'prop');
+  let id = `2026-10-31-${slug(d.name)}`;
+  for (let n = 2; claims.some(c => c.id === id); n++) id = `2026-10-31-${slug(d.name)}-${n}`;
+  return claim(id, uid, d.name, env.name, 'acquired', ready ? 'you' : 'build', ready ? 'Walk it' : 'No path yet: a process has to be built', {
+    as, folder, place: `env-${env.id}`, already_there: !as && !folder && d.ledgers.some(l => l.environment.id === env.id), notes: note ? `${note}\n` : '',
+    path: ready ? path('ready', ['convert_mesh']) : path('none', [], `no process takes it to ${env.name}${as ? ` as ${as}` : ''}`) });
+}
 const refused = (status, detail) => ({ status, body: { detail } });
 
 export function getClaims(route, params, send) {
@@ -44,6 +60,13 @@ export function postClaims(route, body) {
       requisitions: [requisition(2, 'fulfilled')] });
     bump();
     return { status: 200, body: { version } };
+  }
+  if (route === 'claims/preview' || route === 'claims') {
+    try {
+      const made = prepared(body);
+      if (route === 'claims') { claims.unshift(made); bump(); }
+      return { status: 200, body: made };
+    } catch (error) { return refused(error.status, error.message); }
   }
   const close = /^claims\/([^/]+)\/close$/.exec(route);
   if (close) {

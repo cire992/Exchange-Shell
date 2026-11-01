@@ -1,6 +1,7 @@
 // Claims in the Workspace (R5) in the real UI, against the fake core's claims (fake-claims.mjs): the
 // sidebar's count, the Claims view with its gauge and whose turn, the filters, a claim's detail,
-// closing one, a claim moving on its own, and a file that can't be read. Run after npm run build.
+// closing one, a claim moving on its own, a file that can't be read, Claim… and a thing's claims in
+// the inspector. Run after npm run build.
 // Optional: SCREENSHOTS=<folder>.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
@@ -110,6 +111,75 @@ try {
   await prompt('Close the claim on Prop 0020?').getByRole('button', { name: 'Close claim' }).click();
   await expect(status).toHaveText('Closed the claim on Prop 0020');
 
+  // Claim…: the path before anything is written, for a role, a place and a folder.
+  const grid = page.getByRole('listbox', { name: 'Assets' });
+  const card = name => grid.getByRole('option').filter({ has: page.locator('strong').getByText(name, { exact: true }) });
+  const search = page.getByRole('textbox', { name: 'Search the library' });
+  const inspector = page.getByRole('complementary', { name: 'Inspector' });
+  await sidebar.getByRole('button', { name: /^All assets/ }).click();
+  await search.fill('prop 0021');
+  await expect(heading).toContainText('1 asset matching');
+  await card('Prop 0021').click({ button: 'right' });
+  await expect(page.getByRole('menu').getByRole('menuitem').first()).toHaveText('Claim…');
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Claim…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Claim' });
+  await expect(dialog.getByRole('heading', { level: 3 })).toHaveText('Claim Prop 0021');
+  const place = dialog.getByRole('combobox', { name: 'Place' }), pathRow = dialog.getByRole('region', { name: 'Path' }).getByRole('row', { name: /Prop 0021/ });
+  const claimButton = dialog.getByRole('button', { name: 'Claim', exact: true });
+  await place.selectOption('Daz Studio');
+  await expect(pathRow).toContainText('Convert mesh (Blender)');
+  await expect(pathRow).toContainText('Walk it');
+  await expect(dialog.locator('#library-claim-roles option')).toHaveCount(1);
+  await place.selectOption('Loose files');
+  await expect(pathRow).toContainText('This place already holds it: walking writes a second copy');
+  await place.selectOption('Daz Studio');
+  await expect(pathRow).not.toContainText('already holds it');
+  await dialog.getByRole('combobox', { name: 'As' }).fill('g8f_character');
+  await expect(pathRow).toContainText('No path yet: a process has to be built');
+  await expect(claimButton).toBeEnabled(); // a claim with no path is still a claim: it says what to build
+  await dialog.getByRole('textbox', { name: 'Folder' }).fill('../elsewhere');
+  await expect(pathRow).toContainText('leaves Daz Studio');
+  await expect(claimButton).toBeDisabled();
+  await dialog.getByRole('textbox', { name: 'Folder' }).fill('');
+  await dialog.getByRole('combobox', { name: 'As' }).fill('prop');
+  await dialog.getByRole('textbox', { name: 'Note' }).fill('For the cantina.');
+  await expect(pathRow).toContainText('Walk it');
+  if (shots) await page.screenshot({ path: path.join(shots, 'claim-dialog.png') });
+  await claimButton.click();
+  await expect(status).toHaveText('Claimed Prop 0021 for Daz Studio');
+  await expect(dialog).toHaveCount(0);
+  await expect(sidebar.getByRole('button', { name: 'Claims 2' })).toBeVisible();
+
+  // The inspector shows a thing's claims, and each opens in the Claims view.
+  await card('Prop 0021').click();
+  const claimsHere = inspector.getByRole('region', { name: 'Claims' });
+  await expect(claimsHere).toContainText('Daz Studio as prop');
+  await expect(claimsHere).toContainText('Walk it');
+  if (shots) await page.screenshot({ path: path.join(shots, 'claim-inspector.png') });
+  await claimsHere.getByRole('button').click();
+  await expect(detail.getByRole('heading', { level: 3 })).toHaveText('Prop 0021');
+  await expect(detail).toContainText('For the cantina.');
+  await expect(filters.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true');
+
+  // Several things: one choice, each thing's own path, separate claims.
+  await sidebar.getByRole('button', { name: /^All assets/ }).click();
+  await search.fill('prop 002');
+  await expect(card('Prop 0022')).toBeVisible();
+  await card('Prop 0022').click();
+  await card('Prop 0023').click({ modifiers: ['Control'] });
+  await inspector.getByRole('button', { name: 'Claim 2…' }).click();
+  await expect(dialog.getByRole('heading', { level: 3 })).toHaveText('Claim 2 assets');
+  await expect(dialog.getByRole('region', { name: 'Path' }).getByRole('row')).toHaveCount(3);
+  await dialog.getByRole('button', { name: 'Claim 2' }).click();
+  await expect(status).toContainText('Claimed 2 assets for');
+  await expect(sidebar.getByRole('button', { name: 'Claims 4' })).toBeVisible();
+  await search.fill('dwarf helmet');
+  await card('Dwarf Helmet').click();
+  await inspector.getByRole('button', { name: 'Claim…' }).click();
+  await expect(dialog.getByRole('heading', { level: 3 })).toHaveText('Claim Dwarf Helmet');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
   assert.deepEqual(errors, []);
-  console.log('Exchange claims UI passed: the sidebar count, the Claims view (gauge, whose turn, filters, a file that cannot be read), a claim\'s detail, a claim moving on its own, and closing.');
+  console.log('Exchange claims UI passed: the sidebar count, the Claims view (gauge, whose turn, filters, a file that cannot be read), a claim\'s detail, a claim moving on its own, closing, Claim… for one thing and several, and the inspector\'s claims.');
 } finally { await browser?.close(); await service?.close(); }
