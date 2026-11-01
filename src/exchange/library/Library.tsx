@@ -4,6 +4,7 @@ import { exchangeGet, exchangePost, type Brick, type Choices, type Collection, t
 import { libraryActions } from './actions'
 import { fileRefs, mainFile } from './files'
 import Browser, { type SelectMode } from './Browser'
+import Claims from './Claims'
 import { DialogProvider, useDialogs, type MenuItem } from './Dialogs'
 import { useEditing, useUndoKeys, type Refresh } from './editing'
 import Endpoints from './Endpoints'
@@ -83,6 +84,7 @@ function LibraryView() {
   const [requisition, setRequisition] = useState<{ uids: string[]; title: string } | null>(null)
   const [queueReads, setQueueReads] = useState(0) // the queue changed (queued, acted on, a job ended)
   const [queueCount, setQueueCount] = useState<number | null>(null)
+  const [claimCount, setClaimCount] = useState<number | null>(null) // claims waiting on the user
   const latest = useRef({ refresh, say: editing.say })
   useEffect(() => { latest.current = { refresh, say: editing.say } })
   useEffect(() => {
@@ -138,6 +140,12 @@ function LibraryView() {
     }).catch(() => {})
     return () => { current = false }
   }, [generation, queueReads])
+  const claimVersion = jobs.claims.version
+  useEffect(() => {
+    let current = true
+    exchangeGet('claims').then(list => { if (current) setClaimCount(list.claims.filter(c => c.turn === 'you').length) }).catch(() => {})
+    return () => { current = false }
+  }, [generation, claimVersion])
   const environmentMenu = (x: number, y: number, env: SidebarEnvironment) => dialogs.menu(x, y, [
     { label: `Rescan ${env.name}`, disabled: !!writer, run: () => rescan([env.id]) },
     { label: 'Settings…', run: () => setSettingsOf(env.id) },
@@ -322,13 +330,14 @@ function LibraryView() {
     ? 'No environments yet. Add one with Add environment… above.'
     : listing.view.kind === 'collection' && !listing.search ? 'This collection is empty.' : 'Nothing here matches.'
   const { session, status, busy } = editing
-  type Page = 'lexicons' | 'requisitions' | 'processes' | 'endpoints'
+  type Page = 'claims' | 'lexicons' | 'requisitions' | 'processes' | 'endpoints'
   const page = isPage(listing.view) ? listing.view.kind as Page : null
   const shown: Pile | Page = page || (desk ? pile : 'low')
   const pileCount = (value: Pile) => value === 'low' ? sidebar?.unidentified_dossiers : value === 'files' ? sidebar?.unattached_files : pending
   let heading: { title: string; text: string }
   if (shown === 'files') heading = { title: 'Unattached files', text: sidebar ? `${plural(sidebar.unattached_files, 'file')} no asset holds, as of the last scans` : 'Counting…' }
   else if (shown === 'suggestions') heading = { title: 'Suggestions', text: pending === null ? 'Counting…' : `${plural(pending, 'pending suggestion')}: accept or reject them in batches` }
+  else if (shown === 'claims') heading = { title, text: claimCount === null ? 'Reading…' : `${plural(claimCount, 'claim')} waiting on you` }
   else if (shown === 'lexicons') heading = { title, text: 'The word lists scans tag, group and name assets with' }
   else if (shown === 'requisitions') heading = { title, text: queueCount === null ? 'Reading…' : `${plural(queueCount, 'requisition')} waiting, running or needing attention` }
   else if (shown === 'processes') heading = { title, text: 'What converts assets for requisitions, and what each needs' }
@@ -367,7 +376,7 @@ function LibraryView() {
     <div className={`library-body ${page ? 'wide' : ''}`}>
       <Sidebar data={sidebar} collections={collections} error={side.error || ''} view={listing.view} choose={choose}
         newCollection={() => void newCollection()} collectionMenu={collectionMenu}
-        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)} queue={queueCount}
+        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)} queue={queueCount} claims={claimCount}
         dropOnCollection={(collection, uids) => void actions.members(collection.uid, uids, true)} />
       <section className="library-browser" aria-label="Browser">
         <header className="library-heading">
@@ -388,7 +397,8 @@ function LibraryView() {
               {value === 'product' ? 'By product' : 'By type'}</button>)}
           </div>}
         </header>
-        {shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say}
+        {shown === 'claims' ? <Claims key={generation} revision={claimVersion} say={editing.say} />
+          : shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say}
           apply={applyLexicons} busy={!!writer} />
           : shown === 'requisitions' ? <Queue key={generation} revision={revisions.edits + queueReads} busy={!!writer} changed={() => setQueueReads(n => n + 1)}
             say={editing.say} run={runQueue} removeOutput={removeOutput} />

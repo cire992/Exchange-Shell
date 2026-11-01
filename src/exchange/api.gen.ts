@@ -36,6 +36,166 @@ export interface Choices {
   fields: string[]
 }
 
+export interface ClaimChanges {
+  /** False when the claim files are not watched (no watchdog, watching off, or the folder can't be watched): their changes are not noticed */
+  available: boolean
+  /** Grows when a claim may have changed; ask again with since=version to wait for the next */
+  version: number
+}
+
+export interface ClaimClose {
+  /** Added to the claim's notes */
+  reason?: string | null
+}
+
+export interface ClaimDetail {
+  /** The file's name without .md */
+  id: string
+  /** The dossier's uid */
+  thing: string | null
+  /** The dossier's name when the claim was made, as stored in the file; not refreshed on reads, so after a rename it differs from the dossier's name */
+  thing_name: string | null
+  /** What the thing is in the place, e.g. prop; null or an empty string for no role */
+  as: string | null
+  /** The environment's uid */
+  place: string | null
+  /** The environment's name when the claim was made, as stored in the file; not refreshed on reads, so after a rename it differs from the environment's */
+  place_name: string | null
+  /** Where the output should go: absolute, or relative to the place; blank or null is the place's default folder */
+  folder: string | null
+  /** claimed, acquired, converted or installed. An open claim's is derived from the library on every read; a closed claim keeps the one it had */
+  milestone: string | null
+  /** The day the claim was made, as an ISO date */
+  created: string | null
+  /** The day the claim was closed, as an ISO date; null while open */
+  closed: string | null
+  /** Whose move it is. you: the user's (`turn_line` says what). exchange: the claim's latest requisition is queued or running in Exchange. build: no process takes the thing to the place yet, so one has to be built (also when the place is not in the library: `path.problem` says so). none: the claim is closed */
+  turn: "you" | "exchange" | "build" | "none"
+  /** What the turn's owner has to do when it is `you` or `build`; empty for `exchange` and `none` */
+  turn_line: string
+  /** No role or folder and no requisitions, and the place already holds the thing: it has a live entry there on an online root */
+  already_there: boolean
+  /** How the thing gets to the place in the claim's role (`as`); derived on every read, never written */
+  path: ClaimPath
+  /** The claim file's body, under its front matter */
+  notes: string
+  /** The requisitions the claim has walked, in the order its file lists them */
+  requisitions: ClaimRequisition[]
+}
+
+export interface ClaimList {
+  /** Newest created first */
+  claims: ClaimView[]
+  /** A line for each claim file that could not be read, and for each whose milestone could not be saved (the claim is still listed then) */
+  problems: string[]
+}
+
+export interface ClaimPath {
+  /** ready: a route can be walked now. not_ready: a chain exists and `process` names the first process that needs setup. none: no process takes the thing to the place, or the dossier or place is not in the library; `problem` says which */
+  status: "ready" | "not_ready" | "none"
+  /** children means each child dossier takes its own route; null when status is none */
+  route: "convert" | "copy" | "children" | null
+  /** The processes in order; empty when there is none */
+  processes: string[]
+  /** The first process that is not ready, when status is not_ready */
+  process: string | null
+  /** Why the path can't be walked yet; null when it can */
+  problem: string | null
+  /** The ledger entry the route reads from; null when there is none */
+  source_entry_id: number | null
+}
+
+export interface ClaimPreviewRequest {
+  /** The dossier to claim */
+  uid: string
+  /** The id of the environment it should end up in */
+  environment: number
+  /** What it is there, e.g. prop; null or an empty string for no role */
+  as?: string | null
+  /** Absolute (anywhere), or relative to the place; a relative one may not leave it */
+  folder?: string | null
+}
+
+export interface ClaimRequest {
+  /** The dossier to claim */
+  uid: string
+  /** The id of the environment it should end up in */
+  environment: number
+  /** What it is there, e.g. prop; null or an empty string for no role */
+  as?: string | null
+  /** Absolute (anywhere), or relative to the place; a relative one may not leave it */
+  folder?: string | null
+  /** The claim's first note */
+  note?: string
+}
+
+/** One requisition a claim has walked. See `ClaimView` on hand-edited files. */
+export interface ClaimRequisition {
+  /** The requisition's uid as the file lists it */
+  uid: string | null
+  /** Null when the uid no longer resolves to a requisition */
+  id: number | null
+  /** Null when `id` is */
+  state: "queued" | "held" | "running" | "needs_attention" | "fulfilled" | "partially_fulfilled" | "failed" | "stale" | "removed" | "replaced" | null
+  /** Null when `id` is, and when the requisition has no message */
+  message: string | null
+}
+
+/** A claim as the list shows it. A claim file may be hand-edited and then hold anything, so the fields read from it may read as their text or as null; these descriptions cover a file the API wrote. */
+export interface ClaimView {
+  /** The file's name without .md */
+  id: string
+  /** The dossier's uid */
+  thing: string | null
+  /** The dossier's name when the claim was made, as stored in the file; not refreshed on reads, so after a rename it differs from the dossier's name */
+  thing_name: string | null
+  /** What the thing is in the place, e.g. prop; null or an empty string for no role */
+  as: string | null
+  /** The environment's uid */
+  place: string | null
+  /** The environment's name when the claim was made, as stored in the file; not refreshed on reads, so after a rename it differs from the environment's */
+  place_name: string | null
+  /** Where the output should go: absolute, or relative to the place; blank or null is the place's default folder */
+  folder: string | null
+  /** claimed, acquired, converted or installed. An open claim's is derived from the library on every read; a closed claim keeps the one it had */
+  milestone: string | null
+  /** The day the claim was made, as an ISO date */
+  created: string | null
+  /** The day the claim was closed, as an ISO date; null while open */
+  closed: string | null
+  /** Whose move it is. you: the user's (`turn_line` says what). exchange: the claim's latest requisition is queued or running in Exchange. build: no process takes the thing to the place yet, so one has to be built (also when the place is not in the library: `path.problem` says so). none: the claim is closed */
+  turn: "you" | "exchange" | "build" | "none"
+  /** What the turn's owner has to do when it is `you` or `build`; empty for `exchange` and `none` */
+  turn_line: string
+  /** No role or folder and no requisitions, and the place already holds the thing: it has a live entry there on an online root */
+  already_there: boolean
+  /** How the thing gets to the place in the claim's role (`as`); derived on every read, never written */
+  path: ClaimPath
+}
+
+export interface ClaimWalkRequest {
+  /** Option values by process; they win over the preset's */
+  options?: Record<string, Record<string, unknown>>
+  /** Start from a preset; null is the options last used with each process */
+  preset?: string | null
+  on_collision?: "ask" | "overwrite" | "rename" | "skip"
+  /** Items (asset uids) left out */
+  excluded?: string[]
+  /** Start a job that runs the requisition once it is queued */
+  run?: boolean
+}
+
+export interface ClaimWalked {
+  /** The claim after the walk */
+  claim: ClaimDetail
+  /** The requisition the walk queued */
+  requisition: ClaimRequisition
+  /** The job running it; null when `run` is false or `problem` is set */
+  job: Job | null
+  /** Why `run` started no job; the requisition is still queued */
+  problem: string | null
+}
+
 export interface ClassifyJob {
   /** Environment ids; none or empty is every one */
   environments?: number[] | null
@@ -506,6 +666,17 @@ export interface ParentRevert {
   uid: string
 }
 
+/** What a plan lets the client choose, for a requisition and for a claim's path. */
+export interface PlanChoices {
+  /** Option values by process; they win over the preset's */
+  options?: Record<string, Record<string, unknown>>
+  /** Start from a preset; null is the options last used with each process */
+  preset?: string | null
+  on_collision?: "ask" | "overwrite" | "rename" | "skip"
+  /** Items (asset uids) left out */
+  excluded?: string[]
+}
+
 export interface PlanItemView {
   dossier_uid: string
   name: string
@@ -522,21 +693,21 @@ export interface PlanItemView {
 }
 
 export interface PlanRequest {
+  /** Option values by process; they win over the preset's */
+  options?: Record<string, Record<string, unknown>>
+  /** Start from a preset; null is the options last used with each process */
+  preset?: string | null
+  on_collision?: "ask" | "overwrite" | "rename" | "skip"
+  /** Items (asset uids) left out */
+  excluded?: string[]
   /** Assets or products; several are planned with the same options */
   uids: string[]
   /** The target environment */
   environment: number
   /** A chain from /requisitions/routes; null is automatic */
   processes?: string[] | null
-  /** Option values by process; they win over the preset's */
-  options?: Record<string, Record<string, unknown>>
-  /** Start from a preset; null is the options last used with each process */
-  preset?: string | null
   /** Write here instead of the environment's endpoint */
   endpoint_folder?: string | null
-  on_collision?: "ask" | "overwrite" | "rename" | "skip"
-  /** Items (asset uids) left out */
-  excluded?: string[]
   /** The requisition's name, for one asset */
   name?: string | null
 }
@@ -619,6 +790,8 @@ export interface ProcessView {
   /** What trusting it lets it do, to show before asking */
   trust: string[]
   parameters: ParameterView[]
+  /** What its output can be in a place, e.g. prop (the manifest's [output] roles); empty for built-ins */
+  roles: string[]
 }
 
 export interface ProductEdit {
@@ -686,6 +859,8 @@ export interface RequisitionDetail {
   created_at: string
   started_at?: string | null
   finished_at?: string | null
+  /** Where its steps keep their files, to look at a paused step; null when there is none */
+  work_folder?: string | null
   items: RequisitionItem[]
   writes: RequisitionWrite[]
 }
@@ -794,6 +969,11 @@ export interface ScanReport {
   errors?: string[]
   notes?: string[]
   cancelled?: boolean
+}
+
+export interface Seen {
+  /** How many assets `new=true` listed (group all) just before they were marked seen */
+  seen: number
 }
 
 /** This service session's Undo and Redo, as the window's Edit menu shows them. */
@@ -968,6 +1148,8 @@ export interface Routes {
       collection?: string | null
       /** Only Unidentified assets */
       unidentified?: boolean
+      /** Only what is new since the marker; none until a scan has set it */
+      new?: boolean
       offset?: number
       limit?: number
     }
@@ -1167,6 +1349,38 @@ export interface Routes {
     query: {}
     response: RequisitionDetail
   }
+  /** Claims newest first, and a line for each file that could not be read (never filtered). */
+  "claims": {
+    path: {}
+    query: {
+      /** Closed claims too */
+      all?: boolean
+      /** Only claims with this turn: you (the user's move), exchange (the latest requisition is queued or running), build (a process has to be built). A closed claim's turn is none, so it never matches */
+      turn?: "you" | "exchange" | "build" | null
+      /** Only claims for this dossier uid */
+      thing?: string | null
+    }
+    response: ClaimList
+  }
+  /** Whether claims may have changed since ``version`` ``since``: made, closed or walked through the service, a job ended, or a claim file changed (``available`` is false without ``watchdog``: changes to the files themselves are not noticed). The first call starts watching the claims folder. */
+  "claims/changes": {
+    path: {}
+    query: {
+      /** The version you have: wait for a newer one */
+      since?: number | null
+      /** Seconds to wait for a change */
+      wait?: number
+    }
+    response: ClaimChanges
+  }
+  /** One claim with its notes and the requisitions it recorded. */
+  "claims/{id}": {
+    path: {
+      id: string
+    }
+    query: {}
+    response: ClaimDetail
+  }
 }
 
 /** The core's POST routes (edits), proxied as POST /api/exchange/<route> with a JSON body. */
@@ -1355,6 +1569,12 @@ export interface Posts {
     body: EnvironmentConfig
     response: ConfigResult
   }
+  /** Move the what's-new marker to the newest asset. It can't be undone. */
+  "dossiers/new/seen": {
+    path: {}
+    body: undefined
+    response: Seen
+  }
   /** Trust a package as it is now: it may then run its own code. Ask the user first. */
   "processes/{process_id}/trust": {
     path: {
@@ -1448,6 +1668,42 @@ export interface Posts {
     path: {}
     body: RemoveRequest
     response: Job
+  }
+  /** The claim these fields would make, with its path and whose turn it is. Writes nothing. */
+  "claims/preview": {
+    path: {}
+    body: ClaimPreviewRequest
+    response: ClaimView
+  }
+  /** Make the claim: a file in the claims folder. Returns it as ``GET /claims/{id}`` does. */
+  "claims": {
+    path: {}
+    body: ClaimRequest
+    response: ClaimDetail
+  }
+  /** Close a claim; it keeps its milestone. The reason is added to its notes. */
+  "claims/{id}/close": {
+    path: {
+      id: string
+    }
+    body: ClaimClose | null
+    response: ClaimDetail
+  }
+  /** Plan the claim's path as ``POST /claims/{id}/walk`` would queue it. Queues nothing; as on any read, a stale milestone may be saved. Options are chosen as for ``POST /requisitions/queue``. */
+  "claims/{id}/plan": {
+    path: {
+      id: string
+    }
+    body: PlanChoices
+    response: PlanResult
+  }
+  /** Queue the claim's path as a requisition, remember its options as last used, and (with ``run``) start it as a job. If the job could not start, the requisition stays queued and ``problem`` says why. */
+  "claims/{id}/walk": {
+    path: {
+      id: string
+    }
+    body: ClaimWalkRequest
+    response: ClaimWalked
   }
 }
 

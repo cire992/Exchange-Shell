@@ -27,7 +27,7 @@ const jobs = new Map();
 export const excluded = []; // folders the wizard said never to index (GET test/excluded)
 let ids = 0, version = 0;
 const waiters = new Set();
-const changed = () => { for (const wake of [...waiters]) wake(); };
+export const changed = () => { for (const wake of [...waiters]) wake(); };
 const bump = job => { job.version++; version++; changed(); };
 export const view = (job, full = true) => ({ id: job.id, kind: job.kind, label: job.label, state: job.state, writes: job.writes, environments: job.environments,
   started_at: job.started_at, finished_at: job.finished_at, progress: job.progress, error: job.error, version: job.version,
@@ -107,7 +107,7 @@ const changesView = () => ({ available: true, environments: [...notices].sort(),
 const clearNotices = () => { noticeVersion++; changed(); };
 
 // Waiting by version: answer once `current()` differs from `since`, or after `wait` seconds.
-function waitFor(params, current, answer, send) {
+export function waitFor(params, current, answer, send) {
   const since = params.get('since'), wait = Math.min(MAX_WAIT, Number(params.get('wait')) || 0);
   if (since === null || String(current()) !== since || !wait) return send(200, answer());
   const done = () => { waiters.delete(check); clearTimeout(timer); send(200, answer()); };
