@@ -4,6 +4,7 @@ import { exchangeGet, exchangePost, type Brick, type Choices, type Collection, t
 import { libraryActions } from './actions'
 import { fileRefs, mainFile } from './files'
 import Browser, { type SelectMode } from './Browser'
+import ClaimDialog, { type Thing } from './ClaimDialog'
 import Claims from './Claims'
 import { DialogProvider, useDialogs, type MenuItem } from './Dialogs'
 import { useEditing, useUndoKeys, type Refresh } from './editing'
@@ -82,6 +83,8 @@ function LibraryView() {
   const [wizard, setWizard] = useState(false)
   const [settingsOf, setSettingsOf] = useState<number | null>(null)
   const [requisition, setRequisition] = useState<{ uids: string[]; title: string } | null>(null)
+  const [claiming, setClaiming] = useState<Thing[] | null>(null)
+  const [claimFocus, setClaimFocus] = useState<string | null>(null) // the claim to show first in the Claims view
   const [queueReads, setQueueReads] = useState(0) // the queue changed (queued, acted on, a job ended)
   const [queueCount, setQueueCount] = useState<number | null>(null)
   const [claimCount, setClaimCount] = useState<number | null>(null) // claims waiting on the user
@@ -113,7 +116,7 @@ function LibraryView() {
   const removeOutput = (id: number) => void startJob(() => exchangePost('jobs/remove-output', { body: { requisition: id } }))
   // Ctrl+F searches and F5 rescans, as in the window. F5 never reloads the Workspace.
   const searchBox = useRef<HTMLInputElement>(null)
-  const dialogOpen = wizard || requisition !== null || settingsOf !== null
+  const dialogOpen = wizard || requisition !== null || claiming !== null || settingsOf !== null
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.key === 'F5') {
@@ -195,7 +198,8 @@ function LibraryView() {
     return () => clearTimeout(timer)
   }, [draft, listing.search, search])
 
-  const choose = (view: View) => { setListing(previous => ({ ...previous, view, parent: null })); setPile('low') }
+  const choose = (view: View) => { setListing(previous => ({ ...previous, view, parent: null })); setPile('low'); setClaimFocus(null) }
+  const openClaim = (id: string) => { choose({ kind: 'claims' }); setClaimFocus(id) }
   const openSet = (brick: Brick) => setListing(previous => ({ ...previous, parent: { uid: brick.uid, name: brick.name } }))
   const show = (ref: DossierRef) => setSelection({ key, focus: null, anchor: null, picked: new Map([[ref.uid, -1]]) })
   const group = (value: Group) => setListing(previous => ({ ...previous, group: value }))
@@ -224,6 +228,10 @@ function LibraryView() {
     if (picked.size < (pages.total ?? 0)) editing.say(`Selected the ${picked.size.toLocaleString()} assets read so far; scroll to read more.`)
   }
   const dragged = (_index: number, brick: Brick) => selectedUids.has(brick.uid) ? [...selectedUids] : [brick.uid]
+  const claim = (uids: string[], name?: string) => setClaiming(uids.map(uid => {
+    const index = selected.picked.get(uid)
+    return { uid, name: (uids.length === 1 && name) || (index !== undefined && pages.brick(index)?.name) || uid }
+  }))
 
   const newCollection = async (members: string[] = [], query?: string) => {
     const name = await dialogs.ask({ title: query ? 'Save the search as a smart collection' : 'New collection', label: 'Name', confirm: 'Create' })
@@ -250,7 +258,7 @@ function LibraryView() {
     const uids = selectedUids.has(clicked.uid) && selectedUids.size ? [...selectedUids] : [clicked.uid]
     const many = uids.length > 1
     const view = listing.view
-    const items: MenuItem[] = [{ label: 'Requisition to…', run: () => setRequisition({ uids, title: many ? `${uids.length} assets` : clicked.name }) }, { label: '-' }]
+    const items: MenuItem[] = [{ label: 'Claim…', run: () => claim(uids, clicked.name) }, { label: 'Requisition to…', run: () => setRequisition({ uids, title: many ? `${uids.length} assets` : clicked.name }) }, { label: '-' }]
     if (!many) items.push({ label: 'Rename…', run: async () => {
       const name = await dialogs.ask({ title: 'Rename', label: 'Name', value: clicked.name, confirm: 'Rename' })
       if (name && name !== clicked.name) await actions.setField([clicked.uid], 'name', name)
@@ -397,7 +405,7 @@ function LibraryView() {
               {value === 'product' ? 'By product' : 'By type'}</button>)}
           </div>}
         </header>
-        {shown === 'claims' ? <Claims key={generation} revision={claimVersion} say={editing.say} />
+        {shown === 'claims' ? <Claims key={`${generation}|${claimFocus}`} revision={claimVersion} focus={claimFocus} say={editing.say} />
           : shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say}
           apply={applyLexicons} busy={!!writer} />
           : shown === 'requisitions' ? <Queue key={generation} revision={revisions.edits + queueReads} busy={!!writer} changed={() => setQueueReads(n => n + 1)}
@@ -409,13 +417,15 @@ function LibraryView() {
               : <Browser key={key} pages={pages} selected={selectedUids} focus={selected.focus} empty={empty}
                 select={select} selectAll={selectAll} open={openSet} menu={(x, y, brick) => void cardMenu(x, y, brick)} dragged={dragged} drop={drop} />}
       </section>
-      {!page && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual} />}
+      {!page && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual}
+        claimRevision={claimVersion} claim={claim} openClaim={openClaim} />}
     </div>
     <footer className={`library-statusline ${status?.error ? 'error' : ''}`} role="status" aria-live="polite">
       {status?.text || (changed.size && sidebar ? `Changes detected in ${sidebar.environments.filter(e => changed.has(e.id)).map(e => e.name).join(', ')} · Rescan changed when you’re ready`
         : 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.')}
     </footer>
     {wizard && <Wizard jobs={jobs} close={() => setWizard(false)} reviewUnidentified={() => choose({ kind: 'unidentified' })} />}
+    {claiming && <ClaimDialog things={claiming} close={() => setClaiming(null)} claimed={text => editing.say(text)} />}
     {requisition && <RequisitionDialog uids={requisition.uids} title={requisition.title} close={() => setRequisition(null)} queued={queued} />}
     {settingsOf !== null && <EnvironmentSettings id={settingsOf} close={() => setSettingsOf(null)} say={editing.say} />}
   </div>

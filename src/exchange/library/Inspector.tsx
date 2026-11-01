@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { exchangeGet, thumbnailUrl, type Choices, type Collection, type DossierDetail, type DossierRef, type FieldValue } from '../api'
+import { exchangeGet, thumbnailUrl, type Choices, type ClaimView, type Collection, type DossierDetail, type DossierRef, type FieldValue } from '../api'
 import type { LibraryActions } from './actions'
-import { describeEvent, describeSuggestion, fieldLabel, fieldValue, fileSize, plural, shortDate, tagSource } from './format'
+import { Gauge } from './Claims'
+import { claimNext, describeEvent, describeSuggestion, fieldLabel, fieldValue, fileSize, plural, shortDate, tagSource } from './format'
 
 // The fields the About section shows and edits (and Details leaves out), as in the PySide6
 // inspector: [title, the field an edit sets, the fields that may hold it].
@@ -24,6 +25,9 @@ interface Props {
   actions: LibraryActions
   choices: Choices | null
   collections: Collection[]
+  claimRevision: number // grows when a claim may have moved
+  claim: (uids: string[], name?: string) => void
+  openClaim: (id: string) => void
 }
 
 // The selected asset, editable as in the PySide6 window; several selected assets edit together.
@@ -34,7 +38,7 @@ export default function Inspector(props: Props) {
   return <One {...props} uid={uids[0]} />
 }
 
-function One({ uid, revision, show, actions, choices, collections }: Props & { uid: string }) {
+function One({ uid, revision, show, actions, choices, collections, claimRevision, claim, openClaim }: Props & { uid: string }) {
   const [read, setRead] = useState<{ key: string; detail?: DossierDetail; error?: string } | null>(null)
   const [tab, setTab] = useState<Tab>('Overview')
   const key = `${uid}|${revision}`
@@ -60,8 +64,10 @@ function One({ uid, revision, show, actions, choices, collections }: Props & { u
         <p>{summary}</p>
         {d.unidentified && <span className="library-chip warn">Unidentified · {d.confidence.toFixed(2)}</span>}
         {d.fields.not_an_asset?.value === true && <span className="library-chip warn">Not an asset</span>}
+        <p><button type="button" className="library-button" onClick={() => claim([uid], d.name)}>Claim…</button></p>
       </div>
     </header>
+    <ThingClaims uid={uid} revision={claimRevision} open={openClaim} />
     <Stats detail={d} />
     <div className="library-tabs" role="tablist" aria-label="Asset details">
       {TABS.map(name => <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>{name}</button>)}
@@ -73,6 +79,24 @@ function One({ uid, revision, show, actions, choices, collections }: Props & { u
       {tab === 'History' && <History detail={d} actions={actions} />}
     </div>
   </aside>
+}
+
+// The claims on this asset, open or closed; each opens in the Claims view.
+function ThingClaims({ uid, revision, open }: { uid: string; revision: number; open: (id: string) => void }) {
+  const [read, setRead] = useState<{ uid: string; claims: ClaimView[] } | null>(null)
+  useEffect(() => {
+    let current = true
+    exchangeGet('claims', { query: { thing: uid, all: true } }).then(list => { if (current) setRead({ uid, claims: list.claims }) }).catch(() => {})
+    return () => { current = false }
+  }, [uid, revision])
+  if (read?.uid !== uid || !read.claims.length) return null
+  return <section className="library-thing-claims" aria-label="Claims">
+    <h4>Claims</h4>
+    {read.claims.map(claim => <button key={claim.id} type="button" className="library-thing-claim" onClick={() => open(claim.id)}>
+      <Gauge claim={claim} />
+      <span>{claim.place_name || claim.place}{claim.as && ` as ${claim.as}`}<small>{claimNext(claim)}</small></span>
+    </button>)}
+  </section>
 }
 
 // The item card's stats panel: what it is, where it lives, when it was acquired.
@@ -225,11 +249,12 @@ function Overview({ detail: d, show, actions, choices, collections }: { detail: 
 }
 
 // Several assets at once: type, about fields, notes, tags and collections. Names are edited one at a time.
-function Bulk({ uids, actions, choices, collections }: Props) {
+function Bulk({ uids, actions, choices, collections, claim }: Props) {
   const n = uids.length
   return <aside className="library-inspector" aria-label="Inspector">
     <header className="library-inspector-head"><div><h3>{n.toLocaleString()} assets selected</h3>
-      <p>Changes here apply to all of them. Names are edited one at a time.</p></div></header>
+      <p>Changes here apply to all of them. Names are edited one at a time.</p>
+      <p><button type="button" className="library-button" onClick={() => claim(uids)}>Claim {n.toLocaleString()}…</button></p></div></header>
     <div className="library-tab">
       <section><h4>About</h4><dl className="library-fields">
         <Row label="Type"><select aria-label="Type" value="" onChange={event => event.target.value && actions.setField(uids, 'type_id', event.target.value)}>

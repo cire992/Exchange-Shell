@@ -12,7 +12,7 @@ const PACKAGES = {
   copy_entry: { id: 'copy_entry', name: 'Copy to another container', version: '1.0', author: 'Exchange', description: 'Copies an asset as it is.',
     builtin: true, trusted: true, installed: true, input_types: [], input_tags: [], output_environment: 'same', output_dossier_type: '', parameters: [], tools: [] },
   convert_mesh: { id: 'convert_mesh', name: 'Convert mesh (Blender)', version: '1.2', author: 'Exchange', description: 'Converts a mesh with Blender.',
-    builtin: true, trusted: true, installed: true, input_types: ['static_mesh'], input_tags: [], output_environment: 'any', output_dossier_type: 'static_mesh',
+    builtin: true, trusted: true, installed: true, roles: ['prop'], input_types: ['static_mesh'], input_tags: [], output_environment: 'any', output_dossier_type: 'static_mesh',
     tools: ['blender'], parameters: [param('format', 'choice', 'glb', 'Format', { choices: ['glb', 'obj', 'fbx'] }), param('scale', 'float', 1, 'Scale', { min: 0.01, max: 100 }),
       param('apply_modifiers', 'bool', true, 'Apply modifiers'), param('note', 'str', '', 'Note')] },
   stamp_images: { id: 'stamp_images', name: 'Stamp images', version: '0.1', author: 'Test', description: 'Stamps the textures.', builtin: false, trusted: false, installed: false,
@@ -29,7 +29,7 @@ function processView(p) {
   const prerequisites = p.tools.map(t => ({ id: t, label: t === 'blender' ? 'Blender' : t, ok: !!tools[t], detail: tools[t] || `not found; set it with: exchange tools set ${t} PATH`, tool: t }));
   return { id: p.id, name: p.name, version: p.version, author: p.author, description: p.description, builtin: p.builtin, trusted: p.trusted,
     state: !p.trusted ? 'not trusted' : ready(p) ? 'ready' : 'needs setup', path: `C:/Exchange/processes/${p.id}`, input_types: p.input_types, input_tags: p.input_tags,
-    output_environment: p.output_environment, output_dossier_type: p.output_dossier_type, prerequisites, problems: [],
+    output_environment: p.output_environment, output_dossier_type: p.output_dossier_type, prerequisites, problems: [], roles: p.roles || [],
     trust: [`${p.name} ${p.version} by ${p.author}`, `Runs: ${p.tools.join(', ') || 'Python only (no external apps)'}`, 'Writes to: the endpoint you choose'],
     parameters: p.parameters };
 }

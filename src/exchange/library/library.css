@@ -630,3 +630,15 @@ button.library-chip:hover { box-shadow: inset 0 0 0 1px #f2a33a66; }
 .library-turn.exchange { color: var(--exchange-teal); background: #3fc1b01f; }
 .library-turn.build { color: #ff8f7a; background: #ff8f7a1a; }
 .library-turn.none { color: #6f6553; }
+
+/* Claim…, and a thing's claims in the inspector. */
+.library-claim { width: min(760px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; }
+.library-claim-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.library-claim-note { display: block; color: var(--exchange-amber); }
+.library-error-text { color: #ff8f7a; }
+.library-thing-claims { display: grid; gap: 4px; margin: 8px 0; }
+.library-thing-claims h4 { margin: 0; color: var(--exchange-muted); font-size: 12px; font-weight: 500; }
+.library-thing-claim { display: flex; gap: 10px; align-items: center; width: 100%; padding: 6px 8px; border: 1px solid var(--deck-line); border-radius: 6px; background: var(--deck-1); color: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.library-thing-claim:hover { background: var(--deck-2); }
+.library-thing-claim > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.library-thing-claim small { display: block; color: var(--exchange-muted); }

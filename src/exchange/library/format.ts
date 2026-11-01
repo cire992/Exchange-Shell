@@ -1,3 +1,5 @@
+import type { ClaimView } from '../api'
+
 // Words for the library view, matching the PySide6 window's (exchange_ui/inspector.py).
 
 export function fileSize(bytes: number | null | undefined): string {
@@ -72,3 +74,6 @@ export function describeSuggestion(kind: string, p: Payload): string {
   if (kind === 'lexicon_word') return `Add the word “${p.word}” to the ${p.value} tag, so it tags assets by itself`
   return kind.replace(/_/g, ' ')
 }
+
+/** What a claim needs next, in words, for the Claims view and the inspector. */
+export const claimNext = (claim: ClaimView) => claim.closed ? `Closed ${claim.closed}` : claim.turn === 'exchange' ? 'Exchange is on it' : claim.turn_line
