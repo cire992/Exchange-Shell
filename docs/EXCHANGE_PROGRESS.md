@@ -10,7 +10,7 @@ under `docs/archive/`.
 
 For this repository: the Workspace carries the loop, and since 2026-10-29 it is the only window:
 6j is done, and the core removed the PySide6 window (R2c, cire992/3dExchange#33). Next is claims
-in the Workspace (R5, in progress: the core's `docs/R5_PLAN.md`). The Chats window and 7c's checkpoint stay as they
+in the Workspace (R5, done: the core's `docs/R5_PLAN.md`, checked by hand in its `docs/PROGRESS.md`, *R5f*). The Chats window and 7c's checkpoint stay as they
 are, with no new features; game data is frozen.
 
 Last updated 2026-10-29 (6j done: R2a here, R2c in the core). Phase 5, 6c, 6d, 6f, 6h, 6i and 7c are merged (6i reaches `main` with #16), on the core's 6g (cire992/3dExchange#25, and #26 via #27). Phase 6 has 6j left: the parity checklist.
@@ -74,7 +74,8 @@ question 8 was answered "keep the upstream behavior" (see Decisions).
 | R5b | Claims in the Workspace, part 1: the Claims view (milestone gauge, whose turn, Waiting on you, a claim's detail, Close), the sidebar's count, `/claims/changes` followed in `Jobs`, types regenerated. Plan: the core's `docs/R5_PLAN.md`, built by hand (its decision 1 replaces the factory here) | merged (#20) |
 | R5c | Claims in the Workspace, part 2: Claim… on the card menu and in the inspector, for one asset or several, with the core's preview of each path; a thing's claims in the inspector | merged (#21) |
 | R5d | Claims in the Workspace, part 3: Walk, Walk with options… (the plan and forms now shared with Requisition to…), Claim and walk, what each turn asks (Release, Run it, Resume, Set up, Show the work folder); Requisitions becomes Runs, beside Settings | merged (#22) |
-| R5e | Claims in the Workspace, part 4: New (what was first seen since you last marked it all seen), its count, a Claim button on its cards, Mark all seen, and the line after a scan with Show them | in review |
+| R5e | Claims in the Workspace, part 4: New (what was first seen since you last marked it all seen), its count, a Claim button on its cards, Mark all seen, and the line after a scan with Show them | merged (#23) |
+| R5f | The loop by hand on the real core and the sample library (written up in the core's `docs/PROGRESS.md`); Mark all seen follows New's count, not a search | in review |
 | R2c | The PySide6 window is gone (cire992/3dExchange#33): this doc and the Refresh button say so | in review |
 
 Phase 5's PRs were stacked, each based on the previous one. Since then, each PR targets `main`,

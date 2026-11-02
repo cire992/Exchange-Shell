@@ -274,8 +274,11 @@ try {
   await claimButton.click();
   await expect(status).toContainText('Claimed Arrival Crate 2 for Daz Studio');
   await expect(status).toContainText('Queue finished', { timeout: 15000 }); // Mark all seen waits while a job writes
+  await search.fill('nothing like this'); // it marks everything new, not only what a search shows
+  await expect(heading).toContainText('0 assets matching');
   await heading.getByRole('button', { name: 'Mark all seen' }).click();
   await expect(status).toHaveText('Marked 4 new things seen');
+  await search.fill('');
   await expect(page.getByText('Nothing new. What a scan finds first shows up here.')).toBeVisible();
   await expect(sidebar.getByRole('button', { name: 'New 0' })).toBeVisible();
   await expect(heading.getByRole('button', { name: 'Mark all seen' })).toBeDisabled();
