@@ -423,7 +423,7 @@ function LibraryView() {
             {PILES.map(({ pile: value, label }) => <button key={value} type="button" aria-pressed={pile === value} onClick={() => setPile(value)}>
               {label} <small>{pileCount(value)?.toLocaleString() ?? ''}</small></button>)}
           </div> : !page && <div className="library-heading-tools">
-            {listing.view.kind === 'new' && !listing.parent && <button type="button" className="library-button" disabled={!total || !!writer} onClick={() => void markSeen()}
+            {listing.view.kind === 'new' && !listing.parent && <button type="button" className="library-button" disabled={!newCount || !!writer} onClick={() => void markSeen()}
               title={writer ? 'Wait for the running job' : 'Everything here stops being new'}>Mark all seen</button>}
             <div className="library-group" role="group" aria-label="Group by">
             {(['product', 'type'] as const).map(value => <button key={value} type="button" aria-pressed={listing.group === value}
