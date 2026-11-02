@@ -88,8 +88,11 @@ function LibraryView() {
   const [queueReads, setQueueReads] = useState(0) // the queue changed (queued, acted on, a job ended)
   const [queueCount, setQueueCount] = useState<number | null>(null)
   const [claimCount, setClaimCount] = useState<number | null>(null) // claims waiting on the user
-  const latest = useRef({ refresh, say: editing.say })
-  useEffect(() => { latest.current = { refresh, say: editing.say } })
+  const [newCount, setNewCount] = useState<number | null>(null) // what New lists
+  const [newReads, setNewReads] = useState(0) // a scan ended, or everything was marked seen
+  const showNew = () => { setDraft(''); setListing(previous => ({ ...previous, view: { kind: 'new' }, parent: null, search: '' })) }
+  const latest = useRef({ refresh, say: editing.say, showNew })
+  useEffect(() => { latest.current = { refresh, say: editing.say, showNew } })
   useEffect(() => {
     const identified = new Set<number>()
     const progress = jobs.onProgress(job => {
@@ -101,6 +104,13 @@ function LibraryView() {
       setQueueReads(n => n + 1)
       const said = describeFinished(job)
       if (said && job.kind !== 'detect') latest.current.say(said.text, said.error)
+      // After a scan: what it brought, and a way to see it.
+      if ((job.kind === 'scan' || job.kind === 'rescan') && job.state === 'done' && said) {
+        setNewReads(n => n + 1)
+        void exchangeGet('dossiers', { query: { new: true, limit: 1 } }).then(page => {
+          if (page.total) latest.current.say(said.text, said.error, { label: `${plural(page.total, 'new thing')} · Show them`, run: () => latest.current.showNew() })
+        }).catch(() => {})
+      }
     })
     return () => { progress(); finished() }
   }, [jobs])
@@ -149,6 +159,19 @@ function LibraryView() {
     exchangeGet('claims').then(list => { if (current) setClaimCount(list.claims.filter(c => c.turn === 'you').length) }).catch(() => {})
     return () => { current = false }
   }, [generation, claimVersion])
+  useEffect(() => {
+    let current = true
+    exchangeGet('dossiers', { query: { new: true, limit: 1 } }).then(page => { if (current) setNewCount(page.total) }).catch(() => {})
+    return () => { current = false }
+  }, [generation, newReads, revisions.side])
+  const markSeen = async () => {
+    try {
+      const { seen } = await exchangePost('dossiers/new/seen')
+      editing.say(`Marked ${plural(seen, 'new thing')} seen`)
+      setNewReads(n => n + 1)
+      refresh('all')
+    } catch (error) { editing.say(error instanceof Error ? error.message : String(error), true) }
+  }
   const environmentMenu = (x: number, y: number, env: SidebarEnvironment) => dialogs.menu(x, y, [
     { label: `Rescan ${env.name}`, disabled: !!writer, run: () => rescan([env.id]) },
     { label: 'Settings…', run: () => setSettingsOf(env.id) },
@@ -336,7 +359,8 @@ function LibraryView() {
     ? ['product or standalone asset', 'products and standalone assets'] : ['asset', 'assets']
   const empty = sidebar && !sidebar.environments.length
     ? 'No environments yet. Add one with Add environment… above.'
-    : listing.view.kind === 'collection' && !listing.search ? 'This collection is empty.' : 'Nothing here matches.'
+    : listing.view.kind === 'collection' && !listing.search ? 'This collection is empty.'
+      : listing.view.kind === 'new' && !listing.search ? 'Nothing new. What a scan finds first shows up here.' : 'Nothing here matches.'
   const { session, status, busy } = editing
   type Page = 'claims' | 'lexicons' | 'requisitions' | 'processes' | 'endpoints'
   const page = isPage(listing.view) ? listing.view.kind as Page : null
@@ -384,7 +408,7 @@ function LibraryView() {
     <div className={`library-body ${page ? 'wide' : ''}`}>
       <Sidebar data={sidebar} collections={collections} error={side.error || ''} view={listing.view} choose={choose}
         newCollection={() => void newCollection()} collectionMenu={collectionMenu}
-        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)} queue={queueCount} claims={claimCount}
+        changed={changed} environmentMenu={environmentMenu} addEnvironment={() => setWizard(true)} queue={queueCount} claims={claimCount} fresh={newCount}
         dropOnCollection={(collection, uids) => void actions.members(collection.uid, uids, true)} />
       <section className="library-browser" aria-label="Browser">
         <header className="library-heading">
@@ -398,12 +422,15 @@ function LibraryView() {
           {desk ? <div className="library-group library-piles" role="group" aria-label="Unidentified desk">
             {PILES.map(({ pile: value, label }) => <button key={value} type="button" aria-pressed={pile === value} onClick={() => setPile(value)}>
               {label} <small>{pileCount(value)?.toLocaleString() ?? ''}</small></button>)}
-          </div> : !page && <div className="library-group" role="group" aria-label="Group by">
+          </div> : !page && <div className="library-heading-tools">
+            {listing.view.kind === 'new' && !listing.parent && <button type="button" className="library-button" disabled={!total || !!writer} onClick={() => void markSeen()}
+              title={writer ? 'Wait for the running job' : 'Everything here stops being new'}>Mark all seen</button>}
+            <div className="library-group" role="group" aria-label="Group by">
             {(['product', 'type'] as const).map(value => <button key={value} type="button" aria-pressed={listing.group === value}
               disabled={!!listing.parent || grouping !== listing.group} onClick={() => group(value)}
               title={grouping === 'all' ? 'Searches, dossier types, collections and Unidentified list every asset' : undefined}>
               {value === 'product' ? 'By product' : 'By type'}</button>)}
-          </div>}
+          </div></div>}
         </header>
         {shown === 'claims' ? <Claims key={`${generation}|${claimFocus}`} revision={claimVersion} focus={claimFocus} busy={!!writer} say={editing.say}
           setUp={() => choose({ kind: 'processes' })} reveal={showInFolder} />
@@ -416,13 +443,15 @@ function LibraryView() {
           : shown === 'files' ? <Unattached key={generation} revision={revisions.side} actions={actions} show={show} />
             : shown === 'suggestions' ? <Suggestions key={generation} revision={revisions.edits} actions={actions} show={show} />
               : <Browser key={key} pages={pages} selected={selectedUids} focus={selected.focus} empty={empty}
-                select={select} selectAll={selectAll} open={openSet} menu={(x, y, brick) => void cardMenu(x, y, brick)} dragged={dragged} drop={drop} />}
+                select={select} selectAll={selectAll} open={openSet} menu={(x, y, brick) => void cardMenu(x, y, brick)} dragged={dragged} drop={drop}
+                claim={listing.view.kind === 'new' ? brick => claim([brick.uid], brick.name) : undefined} />}
       </section>
       {!page && <Inspector uids={[...selectedUids]} revision={revisions.detail} show={show} actions={actions} choices={choices} collections={manual}
         claimRevision={claimVersion} claim={claim} openClaim={openClaim} />}
     </div>
     <footer className={`library-statusline ${status?.error ? 'error' : ''}`} role="status" aria-live="polite">
-      {status?.text || (changed.size && sidebar ? `Changes detected in ${sidebar.environments.filter(e => changed.has(e.id)).map(e => e.name).join(', ')} · Rescan changed when you’re ready`
+      {status?.text}{status?.action && <> · <button type="button" className="library-link" onClick={status.action.run}>{status.action.label}</button></>}
+      {!status?.text && (changed.size && sidebar ? `Changes detected in ${sidebar.environments.filter(e => changed.has(e.id)).map(e => e.name).join(', ')} · Rescan changed when you’re ready`
         : 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.')}
     </footer>
     {wizard && <Wizard jobs={jobs} close={() => setWizard(false)} reviewUnidentified={() => choose({ kind: 'unidentified' })} />}

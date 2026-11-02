@@ -17,13 +17,14 @@ interface Props {
   addEnvironment: () => void
   queue: number | null // requisitions waiting, running or needing attention
   claims: number | null // claims waiting on the user
+  fresh: number | null // things new since they were last marked seen
 }
 
 const count = (n: number | null | undefined) => n === null || n === undefined ? '' : n.toLocaleString()
 
-// Claims first, then the library, collections, and environments › containers or dossier types, as in
+// Claims and New first, then the library, collections, and environments › containers or dossier types, as in
 // the PySide6 window's sidebar, with then Settings: Runs (the requisition queue), lexicons, processes and endpoints.
-export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection, changed, environmentMenu, addEnvironment, queue, claims }: Props) {
+export default function Sidebar({ data, collections, error, view, choose, newCollection, collectionMenu, dropOnCollection, changed, environmentMenu, addEnvironment, queue, claims, fresh }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (key: string) => setOpen(previous => ({ ...previous, [key]: !previous[key] }))
   const current = viewKey(view)
@@ -68,6 +69,7 @@ export default function Sidebar({ data, collections, error, view, choose, newCol
   return <nav className="library-sidebar" aria-label="Library">
     <h2>Library</h2>
     {item({ kind: 'claims' }, 'Claims', claims, claims ? 'warn' : '')}
+    {item({ kind: 'new' }, 'New', fresh, fresh ? 'fresh' : '')}
     {item({ kind: 'all' }, 'All assets', data?.all)}
     {item({ kind: 'unidentified' }, 'Unidentified', data?.unidentified_dossiers, 'warn')}
     <div className="library-sidebar-head" onContextMenu={event => { event.preventDefault(); collectionMenu(event.clientX, event.clientY, null) }}>
