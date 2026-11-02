@@ -21,6 +21,7 @@ interface Props {
   dragged: (index: number, brick: Brick) => string[] // what dragging this card carries
   drop: (target: Brick, uids: string[], x: number, y: number) => void
   empty: string
+  claim?: (brick: Brick) => void // a Claim button on each card (the New view)
 }
 
 const modeOf = (event: React.MouseEvent | React.KeyboardEvent): SelectMode =>
@@ -29,7 +30,7 @@ const modeOf = (event: React.MouseEvent | React.KeyboardEvent): SelectMode =>
 // A virtualized grid of item cards: only the rows in view are rendered, and pages of 200 are
 // fetched as they scroll into view, so libraries of 200k+ assets stay fast. Cards select like
 // files (Ctrl and Shift), open their menu on right-click, and drop onto each other.
-export default function Browser({ pages, selected, focus, select, selectAll, open, menu, dragged, drop, empty }: Props) {
+export default function Browser({ pages, selected, focus, select, selectAll, open, menu, dragged, drop, empty, claim }: Props) {
   useSyncExternalStore(pages.subscribe, pages.getVersion)
   const scroller = useRef<HTMLDivElement>(null)
   const [columns, setColumns] = useState(4)
@@ -88,7 +89,7 @@ export default function Browser({ pages, selected, focus, select, selectAll, ope
           if (index >= total) return null
           const brick = pages.brick(index)
           return brick
-            ? <Card key={brick.uid} index={index} brick={brick} selected={selected.has(brick.uid)} select={select} open={open} menu={menu} dragged={dragged} drop={drop} />
+            ? <Card key={brick.uid} index={index} brick={brick} selected={selected.has(brick.uid)} select={select} open={open} menu={menu} dragged={dragged} drop={drop} claim={claim} />
             : <div key={index} className="library-card loading" aria-hidden="true" />
         })}
       </div>)}
@@ -96,9 +97,9 @@ export default function Browser({ pages, selected, focus, select, selectAll, ope
   </div>
 }
 
-type CardProps = Pick<Props, 'select' | 'open' | 'menu' | 'dragged' | 'drop'> & { index: number; brick: Brick; selected: boolean }
+type CardProps = Pick<Props, 'select' | 'open' | 'menu' | 'dragged' | 'drop' | 'claim'> & { index: number; brick: Brick; selected: boolean }
 
-function Card({ index, brick, selected, select, open, menu, dragged, drop }: CardProps) {
+function Card({ index, brick, selected, select, open, menu, dragged, drop, claim }: CardProps) {
   const [broken, setBroken] = useState(false)
   const [over, setOver] = useState(false)
   const set = brick.children > 0
@@ -123,6 +124,8 @@ function Card({ index, brick, selected, select, open, menu, dragged, drop }: Car
         ? <img src={thumbnailUrl(brick.uid)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} />
         : <span className="library-format">{brick.format ? brick.format.replace('.', '').toUpperCase() : brick.type_name}</span>}
       {set && <span className="library-set" aria-label={`${brick.children} items`}>{brick.children.toLocaleString()}</span>}
+      {claim && <button type="button" className="library-card-claim" aria-label={`Claim ${brick.name}`} onClick={event => { event.stopPropagation(); claim(brick) }}
+        onDoubleClick={event => event.stopPropagation()}>Claim…</button>}
     </div>
     <strong>{brick.name}</strong>
     <small>{brick.type_name}</small>

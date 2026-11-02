@@ -131,7 +131,7 @@ try {
   // Rescan one environment from its menu.
   await sidebar.getByRole('button', { name: /^Skyrim/ }).click({ button: 'right' });
   await page.getByRole('menu', { name: 'Skyrim' }).getByRole('menuitem', { name: 'Rescan Skyrim' }).click();
-  await expect(status).toHaveText('Scan finished · 1 environment · 2 products', { timeout: 15000 });
+  await expect(status).toHaveText('Scan finished · 1 environment · 2 products · 3 new things · Show them', { timeout: 15000 });
 
   // Apply to library after a lexicon edit (a category edit regroups too).
   await sidebar.getByRole('button', { name: 'Lexicons' }).click();

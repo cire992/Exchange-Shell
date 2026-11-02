@@ -7,15 +7,18 @@ export type Refresh = EditResult['refresh']
 // is one undoable step; after it, the view refreshes what the edit can have changed, and the
 // status line says what happened (or why it could not). Undo and Redo work on this service
 // session's edits, like the window's Ctrl+Z and Ctrl+Y.
+/** A button after the status line's text, e.g. Show them after a scan found new things. */
+export interface StatusAction { label: string; run: () => void }
+
 export interface Editing {
   session: Session
-  status: { text: string; error: boolean } | null
+  status: { text: string; error: boolean; action?: StatusAction } | null
   busy: boolean
   /** Make one edit; resolves to its result, or null when it failed (the reason is in the status line). */
   edit: (request: () => Promise<EditResult>) => Promise<EditResult | null>
   undo: () => Promise<void>
   redo: () => Promise<void>
-  say: (text: string, error?: boolean) => void
+  say: (text: string, error?: boolean, action?: StatusAction) => void
 }
 
 export function useEditing(refresh: (scope: Refresh) => void): Editing {
@@ -29,7 +32,7 @@ export function useEditing(refresh: (scope: Refresh) => void): Editing {
     exchangeGet('session').then(value => { if (current) setSession(value) }).catch(() => {})
     return () => { current = false }
   }, [])
-  const say = useCallback((text: string, error = false) => setStatus({ text, error }), [])
+  const say = useCallback((text: string, error = false, action?: StatusAction) => setStatus({ text, error, action }), [])
   const fail = useCallback((error: unknown) => setStatus({ text: error instanceof Error ? error.message : String(error), error: true }), [])
 
   const edit = useCallback(async (request: () => Promise<EditResult>) => {

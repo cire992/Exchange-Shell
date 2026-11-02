@@ -253,10 +253,37 @@ try {
   await sidebar.getByRole('button', { name: /^Claims/ }).click();
   await expect(row('Prop 0026')).toContainText('Close it, or take it into play', { timeout: 15000 });
 
+  // New: what a scan found first, with a Claim button on each card, and Mark all seen.
+  await expect(sidebar.getByRole('button').nth(1)).toHaveText(/^New/);
+  await core('test/new/arrive', {});
+  await core('jobs/rescan', { environments: [2] });
+  const showThem = status.getByRole('button', { name: '4 new things · Show them' });
+  await expect(showThem).toBeVisible({ timeout: 15000 });
+  await expect(status).toContainText('Scan finished');
+  await expect(sidebar.getByRole('button', { name: 'New 4' })).toBeVisible();
+  await showThem.click();
+  await expect(heading).toContainText('New');
+  await expect(card('Arrival Crate 1')).toBeVisible();
+  await expect(card('Outfit 004 Piece New')).toBeVisible(); // new, in an old product: shown by itself
+  await expect(card('Prop 0007')).toHaveCount(0);
+  await expect(search).toHaveValue(''); // Show them lists everything new, whatever was searched before
+  if (shots) await page.screenshot({ path: path.join(shots, 'new.png') });
+  await card('Arrival Crate 2').getByRole('button', { name: 'Claim Arrival Crate 2' }).click();
+  await expect(dialog.getByRole('heading', { level: 3 })).toHaveText('Claim Arrival Crate 2');
+  await place.selectOption('Daz Studio');
+  await claimButton.click();
+  await expect(status).toContainText('Claimed Arrival Crate 2 for Daz Studio');
+  await expect(status).toContainText('Queue finished', { timeout: 15000 }); // Mark all seen waits while a job writes
+  await heading.getByRole('button', { name: 'Mark all seen' }).click();
+  await expect(status).toHaveText('Marked 4 new things seen');
+  await expect(page.getByText('Nothing new. What a scan finds first shows up here.')).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: 'New 0' })).toBeVisible();
+  await expect(heading.getByRole('button', { name: 'Mark all seen' })).toBeDisabled();
+
   // The queue is Runs now, at the bottom beside Settings.
   await sidebar.getByRole('button', { name: /^Runs/ }).click();
   await expect(heading).toContainText('Runs');
 
   assert.deepEqual(errors, []);
-  console.log('Exchange claims UI passed: the sidebar count, the Claims view (gauge, whose turn, filters, a file that cannot be read), a claim\'s detail, a claim moving on its own, closing, Claim… for one thing and several, the inspector\'s claims, walking, options, a checkpoint, Run it, Release, Claim and walk, and Runs.');
+  console.log('Exchange claims UI passed: the sidebar count, the Claims view (gauge, whose turn, filters, a file that cannot be read), a claim\'s detail, a claim moving on its own, closing, Claim… for one thing and several, the inspector\'s claims, walking, options, a checkpoint, Run it, Release, Claim and walk, Runs, and New.');
 } finally { await browser?.close(); await service?.close(); }

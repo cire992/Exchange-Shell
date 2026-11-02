@@ -643,3 +643,10 @@ button.library-chip:hover { box-shadow: inset 0 0 0 1px #f2a33a66; }
 .library-thing-claim:hover { background: var(--deck-2); }
 .library-thing-claim > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .library-thing-claim small { display: block; color: var(--exchange-muted); }
+
+/* New: a Claim button on each card, and the heading's Mark all seen. */
+.library-card-claim { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border: 1px solid #3fc1b066; border-radius: 5px; background: #0c0b09d9; color: var(--exchange-teal); font-size: 11px; cursor: pointer; }
+.library-card-claim:hover { background: #3fc1b026; }
+.library-heading-tools { display: flex; gap: 8px; align-items: center; flex: none; }
+.library-statusline .library-link { display: inline; padding: 0; }
+.library-nav-item.fresh small { color: var(--exchange-teal); }

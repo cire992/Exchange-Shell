@@ -148,7 +148,7 @@ export function scanned(id) {
   if (!container || lib.dossiers.some(d => d.container === container.id)) return;
   for (let n = 1; n <= 3; n++) {
     const d = { uid: `scanned-${id}-${n}`, name: `${env.name} Crate ${n}`, type_id: 'static_mesh', confidence: 0.8, container: container.id, parent: null,
-      acquired: env.last_scanned_at, format: '.obj', fields: {}, tagsAdd: [], tagsRemove: [], dismissed: false, alias: null, variants: [], history: [] };
+      acquired: env.last_scanned_at, format: '.obj', fields: {}, tagsAdd: [], tagsRemove: [], dismissed: false, alias: null, variants: [], history: [], fresh: true };
     d.scannedName = d.name; d.scannedType = d.type_id; d.scannedParent = null;
     lib.dossiers.push(d);
   }
@@ -244,11 +244,12 @@ export function list(params) {
   if (query.includes('((')) return { status: 400, body: { detail: "Search: unbalanced parentheses at '(('" } };
   const type = params.get('type'), collection = params.get('collection'), parent = params.get('parent');
   const environment = Number(params.get('environment')) || null, container = Number(params.get('container')) || null;
-  const wantUnidentified = params.get('unidentified') === 'true';
+  const wantUnidentified = params.get('unidentified') === 'true', wantNew = params.get('new') === 'true';
   const group = query || type || collection || wantUnidentified ? 'all' : params.get('group') || 'product';
   let items = lib.dossiers.filter(d => live(d) && matches(d, query));
   if (parent) items = items.filter(d => d.parent === parent);
-  else if (group === 'product') items = items.filter(d => !d.parent);
+  else if (group === 'product') items = items.filter(d => !d.parent || (wantNew && d.fresh && !byUid.get(d.parent)?.fresh)); // the outermost new thing
+  if (wantNew) items = items.filter(d => d.fresh);
   if (collection) {
     const c = lib.collections.find(item => item.uid === collection);
     items = !c ? [] : c.smart ? items.filter(d => matches(d, c.query)) : items.filter(d => c.members.includes(d.uid));
@@ -453,8 +454,25 @@ const edits = {
   },
 };
 
+// What a scan finds that is new (test/new/arrive): three meshes in the loose files, and a new piece
+// of an old product.
+function arrive() {
+  const sibling = lib.dossiers.find(d => d.parent === 'product-4');
+  const made = [1, 2, 3].map(n => ({ ...sibling, uid: `arrival-${n}`, name: `Arrival Crate ${n}`, type_id: 'static_mesh', parent: null,
+    container: lib.dossiers.find(d => d.uid === 'mesh-7').container, fresh: true, history: [], fields: {}, tagsAdd: [], tagsRemove: [] }));
+  made.push({ ...sibling, uid: 'product-4-item-new', name: 'Outfit 004 Piece New', fresh: true, history: [], fields: {}, tagsAdd: [], tagsRemove: [] });
+  for (const d of made) { d.scannedName = d.name; d.scannedType = d.type_id; d.scannedParent = d.parent; lib.dossiers.push(d); }
+  index();
+}
+
 export function post(route, body) {
   try {
+    if (route === 'test/new/arrive') { arrive(); return { status: 200, body: {} }; }
+    if (route === 'dossiers/new/seen') {
+      const fresh = lib.dossiers.filter(d => live(d) && d.fresh);
+      for (const d of fresh) d.fresh = false;
+      return { status: 200, body: { seen: fresh.length } };
+    }
     if (route === 'undo') return step(session.undo, session.redo, true);
     if (route === 'redo') return step(session.redo, session.undo, false);
     const members = /^collections\/([^/]+)\/members$/.exec(route);

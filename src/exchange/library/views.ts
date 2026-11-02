@@ -1,6 +1,7 @@
 import type { Query } from './pages'
 
-// What the browser lists: a sidebar choice, optionally a product opened from it, a search and a
+// What the browser lists: a sidebar choice (New lists what was first seen since you last marked it
+// all seen), optionally a product opened from it, a search and a
 // grouping. The core lists everything (no product grouping) for searches, dossier types,
 // collections and Unidentified, as the PySide6 window does. The others are pages of their own:
 // claims, the requisition queue, and Settings › Lexicons, Processes and Endpoints.
@@ -8,6 +9,7 @@ export type View =
   | { kind: 'all' }
   | { kind: 'unidentified' }
   | { kind: 'claims' }
+  | { kind: 'new' }
   | { kind: 'lexicons' }
   | { kind: 'requisitions' }
   | { kind: 'processes' }
@@ -53,6 +55,7 @@ export function listingQuery(listing: Listing): Query {
   if (parent) query.parent = parent.uid
   switch (view.kind) {
     case 'unidentified': query.unidentified = true; break
+    case 'new': query.new = true; break
     case 'collection': query.collection = view.uid; break
     case 'environment': query.environment = view.id; break
     case 'container': query.container = view.id; break
@@ -65,6 +68,7 @@ export function viewTitle(view: View): { crumb: string; title: string } {
   switch (view.kind) {
     case 'unidentified': return { crumb: 'Unidentified desk', title: 'Low confidence' }
     case 'claims': return { crumb: 'Library', title: 'Claims' }
+    case 'new': return { crumb: 'Library', title: 'New' }
     case 'lexicons': return { crumb: 'Settings', title: 'Lexicons' }
     case 'requisitions': return { crumb: 'Settings', title: 'Runs' }
     case 'processes': return { crumb: 'Settings', title: 'Processes' }
