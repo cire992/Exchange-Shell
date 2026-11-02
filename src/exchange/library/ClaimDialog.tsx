@@ -4,7 +4,9 @@ import { plural } from './format'
 
 // Claim… (R5): "this thing, as this, in that place". Choose the role and the place and see, before
 // anything is written, the path each thing would take and whose turn it would be: the core's own
-// preview, the code a real claim goes through. Several things become separate claims.
+// preview, the code a real claim goes through. Several things become separate claims. When every
+// path is ready and nothing is there already, the main button also walks them, with the options last
+// used, as one job: only one job that writes can run at a time.
 
 const PREVIEW_DELAY = 300
 const PREVIEWED = 20 // more than this are claimed the same way, with no preview each
@@ -16,13 +18,14 @@ interface Props {
   things: Thing[]
   close: () => void
   claimed: (text: string) => void
+  busy: boolean // a job writes the library
 }
 
 let lastPlace: number | null = null // the place chosen last, for the next claim
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error)
 
-export default function ClaimDialog({ things, close, claimed }: Props) {
+export default function ClaimDialog({ things, close, claimed, busy: writing }: Props) {
   const [environments, setEnvironments] = useState<Environment[] | null>(null)
   const [environment, setEnvironment] = useState<number | null>(lastPlace)
   const [roles, setRoles] = useState<string[]>([])
@@ -71,28 +74,41 @@ export default function ClaimDialog({ things, close, claimed }: Props) {
   const current = read?.key === key
   const refused = current && read.previews.some(p => p.error)
   const place = environments?.find(e => e.id === environment)
-  const claim = async () => {
+  const walkable = !!current && !refused && things.length === read.previews.length && !writing
+    && read.previews.every(p => p.claim?.path.status === 'ready' && !p.claim.already_there)
+  const claim = async (walk: boolean) => {
     if (environment === null || !place) return
     setBusy(true)
     setProblem('')
     let made = 0
+    const ids: string[] = []
     try {
       for (const thing of things) {
-        await exchangePost('claims', { body: { uid: thing.uid, environment, as: choice.as, folder: choice.folder, note: note.trim() } })
+        const created = await exchangePost('claims', { body: { uid: thing.uid, environment, as: choice.as, folder: choice.folder, note: note.trim() } })
+        ids.push(created.id)
         made++
       }
       lastPlace = environment
-      claimed(`Claimed ${things.length === 1 ? things[0].name : plural(things.length, 'asset')} for ${place.name}`)
+      if (walk) {
+        const queued: number[] = []
+        for (const id of ids) {
+          const walked = await exchangePost('claims/{id}/walk', { path: { id }, body: { run: false } })
+          if (walked.requisition.id !== null) queued.push(walked.requisition.id)
+        }
+        await exchangePost('jobs/requisitions', { body: { ids: queued } })
+      }
+      claimed(`Claimed ${things.length === 1 ? things[0].name : plural(things.length, 'asset')} for ${place.name}${walk ? ' · walking' : ''}`)
       close()
     } catch (error) {
       setProblem(made ? `${plural(made, 'claim')} made, then: ${message(error)}` : message(error))
     } finally { setBusy(false) }
   }
 
+  const label = things.length > 1 ? `Claim ${things.length.toLocaleString()}` : 'Claim'
   return <div className="library-scrim">
     <form className="library-dialog library-claim" role="dialog" aria-label="Claim"
       onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close() } }}
-      onSubmit={event => { event.preventDefault(); if (current && !refused && !busy) void claim() }}>
+      onSubmit={event => { event.preventDefault(); if (current && !refused && !busy) void claim(walkable) }}>
       <h3>Claim {things.length === 1 ? things[0].name : plural(things.length, 'asset')}</h3>
       <div className="library-claim-choices">
         <label>As<input autoFocus list="library-claim-roles" value={role} onChange={event => setRole(event.target.value)} placeholder="No role" spellCheck={false} />
@@ -119,7 +135,8 @@ export default function ClaimDialog({ things, close, claimed }: Props) {
       {problem && <p className="library-error" role="alert">{problem}</p>}
       <div className="library-dialog-buttons">
         <button type="button" className="library-button" onClick={close}>Cancel</button>
-        <button type="submit" className="library-button primary" disabled={!current || refused || busy}>{things.length > 1 ? `Claim ${things.length.toLocaleString()}` : 'Claim'}</button>
+        {walkable && <button type="button" className="library-button" disabled={busy} onClick={() => void claim(false)}>{label}</button>}
+        <button type="submit" className="library-button primary" disabled={!current || refused || busy}>{walkable ? `${label} and walk` : label}</button>
       </div>
     </form>
   </div>

@@ -132,7 +132,7 @@ function LibraryView() {
     return () => window.removeEventListener('keydown', key)
   })
   const queued = (ids: number[], run: boolean) => {
-    editing.say(`Queued ${ids.length} requisition${ids.length === 1 ? '' : 's'}${run ? ' · running' : ' · run it from Requisitions'}`)
+    editing.say(`Queued ${ids.length} requisition${ids.length === 1 ? '' : 's'}${run ? ' · running' : ' · run it from Runs'}`)
     setQueueReads(n => n + 1)
     if (run) runQueue()
   }
@@ -405,7 +405,8 @@ function LibraryView() {
               {value === 'product' ? 'By product' : 'By type'}</button>)}
           </div>}
         </header>
-        {shown === 'claims' ? <Claims key={`${generation}|${claimFocus}`} revision={claimVersion} focus={claimFocus} say={editing.say} />
+        {shown === 'claims' ? <Claims key={`${generation}|${claimFocus}`} revision={claimVersion} focus={claimFocus} busy={!!writer} say={editing.say}
+          setUp={() => choose({ kind: 'processes' })} reveal={showInFolder} />
           : shown === 'lexicons' ? <Lexicons key={generation} revision={revisions.edits} actions={actions} say={editing.say}
           apply={applyLexicons} busy={!!writer} />
           : shown === 'requisitions' ? <Queue key={generation} revision={revisions.edits + queueReads} busy={!!writer} changed={() => setQueueReads(n => n + 1)}
@@ -425,7 +426,7 @@ function LibraryView() {
         : 'Right-click assets for actions; drag them onto another asset or a collection. Ctrl+Z undoes.')}
     </footer>
     {wizard && <Wizard jobs={jobs} close={() => setWizard(false)} reviewUnidentified={() => choose({ kind: 'unidentified' })} />}
-    {claiming && <ClaimDialog things={claiming} close={() => setClaiming(null)} claimed={text => editing.say(text)} />}
+    {claiming && <ClaimDialog things={claiming} close={() => setClaiming(null)} claimed={text => editing.say(text)} busy={!!writer} />}
     {requisition && <RequisitionDialog uids={requisition.uids} title={requisition.title} close={() => setRequisition(null)} queued={queued} />}
     {settingsOf !== null && <EnvironmentSettings id={settingsOf} close={() => setSettingsOf(null)} say={editing.say} />}
   </div>

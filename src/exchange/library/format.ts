@@ -1,4 +1,4 @@
-import type { ClaimView } from '../api'
+import type { ClaimView, ResumeRequest } from '../api'
 
 // Words for the library view, matching the PySide6 window's (exchange_ui/inspector.py).
 
@@ -74,6 +74,8 @@ export function describeSuggestion(kind: string, p: Payload): string {
   if (kind === 'lexicon_word') return `Add the word “${p.word}” to the ${p.value} tag, so it tags assets by itself`
   return kind.replace(/_/g, ' ')
 }
+
+export const RESUMES: [ResumeRequest['on_collision'], string][] = [[null, 'Resume'], ['overwrite', 'Resume, overwriting'], ['rename', 'Resume, renaming new files'], ['skip', 'Resume, skipping those files']]
 
 /** What a claim needs next, in words, for the Claims view and the inspector. */
 export const claimNext = (claim: ClaimView) => claim.closed ? `Closed ${claim.closed}` : claim.turn === 'exchange' ? 'Exchange is on it' : claim.turn_line

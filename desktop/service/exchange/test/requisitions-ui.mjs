@@ -38,7 +38,7 @@ try {
   const card = name => grid.getByRole('option').filter({ has: page.locator('strong').getByText(name, { exact: true }) });
   const prompt = title => page.getByRole('dialog', { name: title });
   await expect(heading).toContainText('2,300 products and standalone assets');
-  await expect(sidebar.getByRole('button', { name: /^Requisitions/ })).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: /^Runs/ })).toBeVisible();
 
   // Settings › Processes: Convert mesh needs Blender's path; a package is installed, then trusted.
   await sidebar.getByRole('button', { name: 'Processes' }).click();
@@ -108,8 +108,8 @@ try {
   await expect(options.getByRole('spinbutton', { name: 'Scale' })).toHaveValue('3');
   if (shots) await page.screenshot({ path: path.join(shots, 'requisitions-dialog.png') });
   await dialog.getByRole('button', { name: 'Add to queue (1)' }).click();
-  await expect(status).toHaveText('Queued 1 requisition · run it from Requisitions');
-  await expect(sidebar.getByRole('button', { name: /^Requisitions 1$/ })).toBeVisible();
+  await expect(status).toHaveText('Queued 1 requisition · run it from Runs');
+  await expect(sidebar.getByRole('button', { name: /^Runs 1$/ })).toBeVisible();
 
   // A product with nothing that converts there says so.
   await search.fill('outfit 001');
@@ -131,7 +131,7 @@ try {
   await expect(status).toHaveText('Queue finished · 1 fulfilled, 1 needs attention', { timeout: 15000 });
 
   // The queue: Resume after the checkpoint, rebuild, hold and release, remove output, check stale.
-  await sidebar.getByRole('button', { name: /^Requisitions/ }).click();
+  await sidebar.getByRole('button', { name: /^Runs/ }).click();
   const queue = page.locator('.library-queue');
   const row = name => queue.getByRole('row').filter({ hasText: name });
   await expect(row('Prop 0014')).toContainText('Needs attention');
@@ -162,7 +162,7 @@ try {
   await expect(row('Prop 0014')).toContainText('Removed');
   await queue.getByRole('button', { name: 'Check stale' }).click();
   await expect(status).toHaveText('Nothing is stale');
-  await expect(sidebar.getByRole('button', { name: /^Requisitions 1$/ })).toBeVisible(); // the rebuild waits
+  await expect(sidebar.getByRole('button', { name: /^Runs 1$/ })).toBeVisible(); // the rebuild waits
   assert.deepEqual(errors, []);
   console.log('Exchange requisitions UI passed: Settings › Processes (tool path, install, trust), Settings › Endpoints, Requisition to… (routes, option problems, presets, a product with nothing to convert, queue, Add and run), and the queue (checkpoint and Resume, rebuild, hold and release, remove output, check stale).');
 } finally { await browser?.close(); await service?.close(); }
